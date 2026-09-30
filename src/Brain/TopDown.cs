@@ -17,7 +17,6 @@ public partial class Milo
     public bool TopDown { get; private set; }
     /// <summary>Direction he faces in radians (0 = right, pi/2 = down).</summary>
     public double Heading = -Math.PI / 2;
-    public Animator TopAnim;
     public readonly List<PawPrint> Prints = new();
 
     enum Top { Idle, Walk, Sniff, Sit, Lie, Sleep, Follow, Chase, Zoom, Petted, Slide, Laser, Investigate }
@@ -29,7 +28,7 @@ public partial class Milo
 
     public void SetTopDown(bool on)
     {
-        if (on == TopDown || on && Sprites.Top == null) return;
+        if (on == TopDown) return;
         Current?.Exit(this);
         Current = null;
         while (suspended.Count > 0) suspended.Pop().Exit(this);
@@ -40,9 +39,8 @@ public partial class Milo
         Prints.Clear();
         if (on)
         {
-            TopAnim ??= new Animator(Sprites.Top.Get);
-            Body.Y -= U(14);
             Heading = Facing > 0 ? 0 : Math.PI;
+            Body.Y -= U(4);
             TopSet(Top.Idle, 1.5, Posture.Stand);
             Emote("sparkle", 1.2);
         }
@@ -57,11 +55,10 @@ public partial class Milo
         ForcePosture(posture);
     }
 
-    public RectD TopHitRect() => new(Body.X - U(13), Body.Y - U(13), Body.X + U(13), Body.Y + U(13));
-
     World.Screen TopScreen() => W.ScreenAt(Body.X, Body.Y) is World.Screen s && s != W.BlockedScreen ? s : W.Screens.FirstOrDefault(x => x != W.BlockedScreen);
 
-    bool Walkable(double x, double y) => W.Screens.Any(s => s != W.BlockedScreen && s.Work.Contains(x, y));
+    // y is where his paws touch the screen; his head needs room above that too.
+    bool Walkable(double x, double y) => W.Screens.Any(s => s != W.BlockedScreen && s.Work.Contains(x, y) && y - U(40) > s.Work.Top && x - U(20) > s.Work.Left && x + U(20) < s.Work.Right);
 
     (double x, double y) RandomSpot(double range)
     {
@@ -72,9 +69,9 @@ public partial class Milo
         for (int i = 0; i < 8; i++)
         {
             double x = Body.X + (Rng.NextDouble() * 2 - 1) * range, y = Body.Y + (Rng.NextDouble() * 2 - 1) * range * 0.7;
-            if (Walkable(x, y) && x > r.Left + m && x < r.Right - m && y > r.Top + m && y < r.Bottom - m) return (x, y);
+            if (Walkable(x, y) && y < r.Bottom - m) return (x, y);
         }
-        return (Math.Clamp(Body.X, r.Left + m, r.Right - m), Math.Clamp(Body.Y, r.Top + m, r.Bottom - m));
+        return (Math.Clamp(Body.X, r.Left + m + U(4), r.Right - m - U(4)), Math.Clamp(Body.Y, r.Top + U(46), r.Bottom - m));
     }
 
     static double Wrap(double a)
@@ -259,8 +256,8 @@ public partial class Milo
                 if (topT > topDur + 2.5) TopChoose();
                 break;
         }
-        TopAnim.Play(anim);
-        TopAnim.Update(dt);
+        PlayTop(anim);
+        Anim.Update(dt);
     }
 
     void TopChoose()
@@ -342,7 +339,7 @@ public partial class Milo
         var s = TopScreen();
         if (s == null) return;
         goalX = Math.Clamp(x, s.Work.Left + U(20), s.Work.Right - U(20));
-        goalY = Math.Clamp(y, s.Work.Top + U(20), s.Work.Bottom - U(20));
+        goalY = Math.Clamp(y, s.Work.Top + U(46), s.Work.Bottom - U(20));
         if (!Walkable(goalX, goalY)) return;
         arriveIcon = icon;
         Emote("exclaim", 1);
@@ -354,5 +351,43 @@ public partial class Milo
         Body.X = s.Work.CenterX;
         Body.Y = s.Work.CenterY;
         Prints.Clear();
+    }
+}
+
+public partial class Milo
+{
+    // Like top-down games (Stardew, Zelda): side view when he walks left/right, his face when he comes
+    // towards you (down the screen), his back when he walks away (up the screen).
+    enum View { Side, Front, Back }
+
+    View TopView()
+    {
+        double c = Math.Cos(Heading), s = Math.Sin(Heading);
+        if (Math.Abs(c) >= 0.55) return View.Side;
+        return s > 0 ? View.Front : View.Back;
+    }
+
+    void PlayTop(string kind)
+    {
+        var v = TopView();
+        if (v == View.Side) Facing = Math.Cos(Heading) >= 0 ? 1 : -1;
+        bool happy = Happiness > 0.45;
+        string name = kind switch
+        {
+            "walk" => v switch { View.Front => "front_walk", View.Back => "back_walk", _ => happy ? "walk_happy" : "walk" },
+            "run" => v switch { View.Front => "front_walk", View.Back => "back_walk", _ => Energy > 0.6 && Excitement > 0.5 ? "zoom" : "run" },
+            "idle" => v switch { View.Front => "front", View.Back => "back", _ => Now < pantUntil ? "happy" : "idle" },
+            "wag" => v switch { View.Front => "front_happy", View.Back => "back", _ => "idle_wag" },
+            "sit" => v == View.Front ? "front" : v == View.Back ? "back" : Now < pantUntil ? "sit_pant" : "sit",
+            "sit_wag" => v == View.Back ? "back" : "front_happy",
+            "sniff" => "sniff",
+            "lie" => Energy < 0.3 ? "lie_sleepy" : "lie",
+            "sleep" => "sleep",
+            "held" => Happiness > 0.55 ? "held_happy" : "held",
+            _ => "idle"
+        };
+        if (kind is "sniff" or "lie" or "sleep" && v != View.Side) Facing = Math.Cos(Heading) >= 0 ? 1 : -1;
+        Anim.Play(name);
+        Anim.Speed = kind == "run" && v != View.Side ? 1.8 : 1.0;
     }
 }

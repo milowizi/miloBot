@@ -181,7 +181,6 @@ public partial class Milo
 
     public void HoldAt(double cx, double cy)
     {
-        if (TopDown) { Body.X = cx; Body.Y = cy + U(4); return; }
         Body.X = cx + 2 * S * Facing;
         Body.Y = cy + (Sprites.Ground - 20) * S;
     }

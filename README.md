@@ -85,7 +85,7 @@ Hij doet dat nooit met gemaximaliseerde of fullscreen vensters, nooit van je sch
 
 ### Bovenaanzicht
 
-Menu → Opties → **Bovenaanzicht**: dan kijk je van bovenaf op Milo en is je hele scherm zijn vloer. Hij loopt overal rond (over je vensters heen), snuffelt, gaat zitten of liggen, rolt zich op om te slapen, komt naar je muis en jaagt erachteraan als je snel beweegt. Waar hij loopt zie je even **pootafdrukjes** die na een seconde weer verdwijnen. Aaien, klikken, oppakken en gooien (dan glijdt hij over je scherm) werken ook, net als het laserpuntje. Balletje, snoepje, trucjes, vlinders en zijn mandje horen bij de zijaanzicht-modus en staan dan even uit.
+Menu → Opties → **Bovenaanzicht**: dan is je hele scherm zijn vloer, zoals in een top-down game (Stardew Valley, Zelda). Loopt hij naar links of rechts dan zie je hem van opzij, komt hij naar beneden dan zie je zijn snoetje, gaat hij naar boven dan zie je zijn rug. Een schaduwtje onder zijn pootjes laat zien waar hij staat. Hij loopt overal rond (over je vensters heen), snuffelt, gaat zitten of liggen, rolt zich op om te slapen, komt naar je muis en jaagt erachteraan als je snel beweegt. Waar hij loopt zie je even **pootafdrukjes** die na een seconde weer verdwijnen. Aaien, klikken, oppakken en gooien (dan glijdt hij over je scherm) werken ook, net als het laserpuntje. Balletje, snoepje, trucjes, vlinders en zijn mandje horen bij de zijaanzicht-modus en staan dan even uit.
 
 ### Mandje en voerbak verplaatsen
 

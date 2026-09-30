@@ -83,15 +83,7 @@ public partial class Milo
         UpdateCursorStill(dt);
         if (ContentPlay) UpdateContent(dt);
 
-        if (Posture == Posture.Held && TopDown)
-        {
-            Current = null;
-            TopAnim.Play("held");
-            TopAnim.Update(dt);
-            return;
-        }
-
-        if (TopDown)
+        if (TopDown && Posture != Posture.Held)
         {
             UpdateTop(dt);
             return;
@@ -267,7 +259,6 @@ public partial class Milo
 
     public RectD HitRect()
     {
-        if (TopDown) return TopHitRect();
         switch (Body.Surface)
         {
             case Surface.Ceiling: return new RectD(Body.X - U(19), Body.Y, Body.X + U(19), Body.Y + U(30));

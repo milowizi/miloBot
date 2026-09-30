@@ -38,33 +38,20 @@ public partial class App
         };
     }
 
-    void RenderTop()
+    // In top view a soft shadow under his paws makes the screen read as a floor.
+    void DrawShadow(Bitmap c, double cx, double cy)
     {
-        var t = sprites.Top;
-        int frame = milo.TopAnim.SheetFrame;
-        double cw = sprites.FrameW + 2 * SideMargin, ch = sprites.FrameH + TopMargin;
-        int x = (int)Math.Round(milo.Body.X - cw / 2 * scale), y = (int)Math.Round(milo.Body.Y - ch / 2 * scale);
-        int angle = (int)Math.Round((milo.Heading + Math.PI / 2) / (Math.PI / 16));
-        string key = $"top|{frame}|{angle}|{x}|{y}|{milo.Particles.Count}";
-        if (key == lastRenderKey && milo.Particles.Count == 0) return;
-        lastRenderKey = key;
-        winX = x;
-        winY = y;
-        var c = petWindow.Canvas;
-        c.Clear();
-        var (fx, fy) = t.FrameOrigin(frame);
-        c.DrawRotated(t.Sheet, fx, fy, t.Size, cw / 2 * scale, ch / 2 * scale, angle * Math.PI / 16, scale);
-        double hx = cw / 2, hy = ch / 2 - 14;
-        foreach (var p in milo.Particles)
-        {
-            double age = p.MaxLife - p.Life;
-            double alpha = Math.Min(1, age / 0.15) * Math.Min(1, p.Life / 0.4);
-            if (p.World || p.Dream) continue;
-            double px = hx + p.X, py = hy + p.Y - 4;
-            if (p.OnHead) py += Math.Sin(age * 6) * 0.8 - 3;
-            DrawIcon(c, p.Icon, px, py, alpha);
-        }
-        petWindow.Present(x, y);
+        double rx = 13 * scale, ry = 3 * scale;
+        cx *= scale;
+        cy *= scale;
+        uint col = Bitmap.Premultiply(0, 0, 0, 60);
+        for (int y = (int)(cy - ry); y <= (int)(cy + ry); y++)
+            for (int x = (int)(cx - rx); x <= (int)(cx + rx); x++)
+            {
+                if (x < 0 || y < 0 || x >= c.Width || y >= c.Height) continue;
+                double dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
+                if (dx * dx + dy * dy <= 1) c.Pixels[y * c.Width + x] = col;
+            }
     }
 
     const int TrailSize = 640;
@@ -117,11 +104,6 @@ public partial class App
     void Render()
     {
         if (milo.Hidden) return;
-        if (milo.TopDown && sprites.Top != null)
-        {
-            RenderTop();
-            return;
-        }
         int frame = milo.Anim.SheetFrame;
         bool flip = milo.Facing < 0;
         int q = milo.Quarter;
@@ -131,7 +113,7 @@ public partial class App
         int y = (int)Math.Round(milo.Body.Y - (feet.y + lift) * scale);
         var held = toys.InMouth;
         string hat = CurrentHat();
-        string key = $"{frame}|{flip}|{q}|{x}|{y}|{held?.Kind}|{hat}|{milo.Particles.Count}";
+        string key = $"{frame}|{flip}|{q}|{milo.TopDown}|{x}|{y}|{held?.Kind}|{hat}|{milo.Particles.Count}";
         if (key == lastRenderKey && milo.Particles.Count == 0) return;
         lastRenderKey = key;
         winX = x;
@@ -140,6 +122,7 @@ public partial class App
         c.Clear();
         var (fx, fy) = sprites.FrameOrigin(frame);
         double ax = sprites.FrameW / 2.0, ay = sprites.Ground;
+        if (milo.TopDown && milo.Posture != Posture.Held) DrawShadow(c, feet.x, feet.y - 0.5);
         c.DrawTurned(sprites.Sheet, fx, fy, sprites.FrameW, sprites.FrameH, ax, ay, feet.x, feet.y, q, scale, flip);
         if (hat != null && sprites.Hats.TryGetValue(hat, out var hatSheet))
             c.DrawTurned(hatSheet, fx, fy, sprites.FrameW, sprites.FrameH, ax, ay, feet.x, feet.y, q, scale, flip);
