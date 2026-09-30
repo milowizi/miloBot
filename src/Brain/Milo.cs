@@ -80,11 +80,29 @@ public partial class Milo
         UpdateTyping(dt);
         UpdateParticles(dt);
         UpdateSenses(dt);
+        UpdateCursorStill(dt);
+        if (ContentPlay) UpdateContent(dt);
 
         if (Posture == Posture.Held)
         {
             if (Current is not Held) Set(new Held());
             Current?.Update(this, dt);
+            Anim.Update(dt);
+            return;
+        }
+
+        if (Body.Climbing)
+        {
+            // On a wall or the ceiling only Crawl knows how to move him; anything else (a click, a scare) makes him let go.
+            if (Current is Crawl crawl)
+            {
+                if (!crawl.Update(this, dt) && Current == crawl)
+                {
+                    crawl.Exit(this);
+                    Current = null;
+                }
+            }
+            if (Body.Climbing && Current is not Crawl) LetGo();
             Anim.Update(dt);
             return;
         }
@@ -235,6 +253,12 @@ public partial class Milo
 
     public RectD HitRect()
     {
+        switch (Body.Surface)
+        {
+            case Surface.Ceiling: return new RectD(Body.X - U(19), Body.Y, Body.X + U(19), Body.Y + U(30));
+            case Surface.WallLeft: return new RectD(Body.X, Body.Y - U(19), Body.X + U(30), Body.Y + U(19));
+            case Surface.WallRight: return new RectD(Body.X - U(30), Body.Y - U(19), Body.X, Body.Y + U(19));
+        }
         double top = Posture switch
         {
             Posture.Sleep or Posture.Lie or Posture.Belly => Body.Y - U(22),
@@ -242,6 +266,44 @@ public partial class Milo
             _ => Body.Y - U(32)
         };
         return new RectD(Body.X - U(19), top, Body.X + U(19), Body.Y);
+    }
+
+    /// <summary>Sprite rotation in quarter turns clockwise: 0 upright, 1 feet on a left wall, 2 upside down, 3 feet on a right wall.</summary>
+    public int Quarter => Now < spinUntil ? ((spinFrom + spinDir * (int)((Now - spinStart) / 0.08)) % 4 + 4) % 4 : (int)Body.Surface;
+    double spinUntil = -1, spinStart;
+    int spinFrom, spinDir;
+
+    /// <summary>Stop climbing and fall, turning right side up on the way down.</summary>
+    public void LetGo(double vx = 0)
+    {
+        var s = Body.Surface;
+        if (s == Surface.Floor) return;
+        switch (s)
+        {
+            case Surface.Ceiling: Body.Y += U(30); break;
+            case Surface.WallLeft: Body.X += U(18); Body.Y += U(16); break;
+            case Surface.WallRight: Body.X -= U(18); Body.Y += U(16); break;
+        }
+        Body.Surface = Surface.Floor;
+        Body.Detach();
+        Body.VX = vx;
+        Body.VY = 0;
+        ForcePosture(Posture.Air);
+        spinFrom = (int)s;
+        spinDir = s == Surface.WallLeft ? -1 : 1;
+        spinStart = Now;
+        spinUntil = Now + (s == Surface.Ceiling ? 0.16 : 0.08);
+        Emote("exclaim", 1.0);
+    }
+
+    /// <summary>Put him on another screen's floor (used when a fullscreen game takes over his screen).</summary>
+    public void MoveTo(Platform floor, double x)
+    {
+        if (Body.Climbing) Body.Surface = Surface.Floor;
+        if (Current != null && Current.Priority < 4) { Current.Exit(this); Current = null; while (suspended.Count > 0) suspended.Pop().Exit(this); }
+        Body.X = Math.Clamp(x, floor.X1 + Body.HalfWidth, floor.X2 - Body.HalfWidth);
+        Body.Land(floor, WindowRect);
+        if (Posture == Posture.Air) ForcePosture(Posture.Stand);
     }
 
     public bool IsNight => W.Hour >= 23 || W.Hour < 6;

@@ -7,19 +7,20 @@ GROUND = 45
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")
 
 PAL = {
-    "fur":    ["#f2a452", "#dc772c", "#b0541f", "#7e3514"],
-    "cream":  ["#fff1d8", "#f5d9ab", "#d8b07a", "#a67c4c"],
-    "mask":   ["#9a5530", "#7a3f22", "#5e2e18", "#40200f"],
+    "fur":    ["#ec8c48", "#cf642a", "#a3441c", "#6c2a10"],
+    "cream":  ["#faecdc", "#ead0b0", "#cdaa82", "#9a7654"],
+    "mask":   ["#8a4526", "#6a321b", "#4e2413", "#34170b"],
     "earin":  ["#b5582a", "#94431f", "#763419", "#582511"],
     "nose":   ["#3a2a26", "#1d1311", "#140c0a", "#0a0605"],
     "eye":    ["#2a1a14", "#120b09", "#0b0706", "#060302"],
     "white":  ["#ffffff", "#ffffff", "#e8e8e8", "#c0c0c0"],
     "tongue": ["#f497a6", "#e8718a", "#c4506a", "#9a3450"],
     "mouth":  ["#7a2a2e", "#5a1c20", "#401216", "#2a0a0c"],
+    "sable":  ["#94705e", "#704f42", "#50372f", "#35231e"],
 }
 OUTLINE = {
     "fur": "#4a1e0c", "cream": "#6e4a28", "mask": "#2e160a", "earin": "#3e1a0a",
-    "nose": "#0a0605", "eye": "#060302", "white": "#555555", "tongue": "#6a2032", "mouth": "#2a0a0c",
+    "nose": "#0a0605", "eye": "#060302", "white": "#555555", "tongue": "#6a2032", "mouth": "#2a0a0c", "sable": "#24160f",
 }
 KEYS = list(PAL.keys())
 K = {k: i for i, k in enumerate(KEYS)}
@@ -85,7 +86,33 @@ class Canvas:
         self.key = sh(self.key, dy, dx, -1)
         self.lvl = sh(self.lvl, dy, dx, 0)
 
+    def sable(self):
+        """Milo's dark saddle: charcoal tips on the top of his back and tail (side views only)."""
+        a = self.anchor.get("hat")
+        if a is None or a[2] != "side" or self.anchor.get("_sabled"):
+            return
+        self.anchor["_sabled"] = True
+        hx = a[0]
+        d = 1 if hx >= W / 2 else -1
+        fur, sab = K["fur"], K["sable"]
+        filled = self.filled()
+        for x in range(self.w):
+            if (x - (hx - 7 * d)) * d >= 0:
+                continue
+            ys = np.nonzero(filled[:, x])[0]
+            if len(ys) == 0:
+                continue
+            top = ys[0]
+            for y in range(top, min(self.h, top + 6)):
+                if self.key[y, x] != fur:
+                    continue
+                depth = y - top
+                if depth <= 2 or (depth == 3 and (x + y) % 2 == 0) or (depth == 4 and (x + 2 * y) % 4 == 0):
+                    self.key[y, x] = sab
+                    self.lvl[y, x] = min(3, self.lvl[y, x] + (1 if depth == 0 else 0))
+
     def image(self, outline=True):
+        self.sable()
         img = np.zeros((self.h, self.w, 4), np.uint8)
         f = self.filled()
         for i, k in enumerate(KEYS):
@@ -180,14 +207,13 @@ ROUND_B = [(-150, 1.0), (-110, 1.0), (-70, 1.0), (-30, 0.9), (10, 0.9), (180, 1.
 
 # ---------------------------------------------------------------- side view parts
 
-def leg(c, x, top, fx, fy, near, key="cream", width=3, paw=True):
+def leg(c, x, top, fx, fy, near, key="fur", width=3, paw=True):
     lvl = 1 if near else 2
-    m = line_mask(c, [(x + 1, top), (fx + 1, fy - 2)], width)
+    c.paint(line_mask(c, [(x + 1, top), (fx + 1, fy - 2)], width), key, lvl)
     if paw:
-        m |= rect_mask(c, fx, fy - 2, fx + 3, fy)
-    c.paint(m, key, lvl)
+        c.paint(rect_mask(c, fx, fy - 2, fx + 3, fy), "cream", lvl)
     if near and paw:
-        c.paint(rect_mask(c, fx + 1, fy - 1, fx + 2, fy), key, 2)
+        c.paint(rect_mask(c, fx + 1, fy - 1, fx + 2, fy), "cream", 2)
 
 
 def stand_legs(phase=None, lift=0.0, stride=0.0, gy=GROUND, top=39, dx=0):
@@ -543,8 +569,11 @@ def back_view(dy=0, sway=0):
     cx = 24
     for s_ in (-1, 1):
         cloud(c, "fur", cx + s_ * 8, 41 + dy * 0.5, 4.5, 3.4, ROUND_B, 1.6, lvl_add=1)
-        c.paint(rect_mask(c, cx + s_ * 9 - 2, 43, cx + s_ * 9 + 2, GROUND), "cream", 2)
-    cloud(c, "fur", cx, 36 + dy, 8.5, 7.5, ROUND_B, 2.0)
+        c.paint(rect_mask(c, cx + s_ * 9 - 2, 43, cx + s_ * 9 + 2, GROUND), "fur", 2)
+    body = cloud(c, "fur", cx, 36 + dy, 8.5, 7.5, ROUND_B, 2.0)
+    ys, xs = np.mgrid[0:c.h, 0:c.w]
+    saddle = body & (ys < 35 + dy) & ((ys < 33 + dy) | ((xs + ys) % 2 == 0))
+    c.paint(saddle, "sable", np.clip(c.lvl, 0, 3))
     hy = 24 + dy
     for s_ in (-1, 1):
         e = [(cx + s_ * 2.5, hy - 4.5), (cx + s_ * 7.2, hy - 2.5), (cx + s_ * 7.0, hy - 11.0)]
@@ -557,6 +586,9 @@ def back_view(dy=0, sway=0):
     c.ring(tail, 1, only=("fur",))
     c.paint(tail, "fur", np.clip(shade_ellipse(c, cx + sway, 33 + dy, 7, 6, 0.1, 0.5) - 1, 0, 3))
     c.strokes([(cx + sway - 2, 33 + dy), (cx + sway + 2, 34 + dy), (cx + sway, 35 + dy)])
+    tys = np.nonzero(tail.any(axis=1))[0]
+    if len(tys):
+        c.paint(tail & (ys <= tys[0] + 1), "sable", 1)
     c.clip_ground()
     c.anchor["mouth"] = (cx, hy + 6)
     c.anchor["head"] = (cx, hy - 12)
@@ -642,7 +674,8 @@ def front(eye="open", mouth="closed", tilt=0, dy=0, ears="up", look=0, paw=0):
     cx = 24
     for s in (-1, 1):
         cloud(c, "fur", cx + s * 8.5, 40.5 + dy * 0.5, 4.5, 3.5, ROUND_B, 1.6, lvl_add=1)
-        c.paint(rect_mask(c, cx + s * 9.5 - 2, 43, cx + s * 9.5 + 2, GROUND), "cream", 2)
+        c.paint(rect_mask(c, cx + s * 9.5 - 2, 43, cx + s * 9.5 + 2, GROUND), "fur", 2)
+        c.paint(rect_mask(c, cx + s * 9.5 - 2, 44, cx + s * 9.5 + 2, GROUND), "cream", 2)
     cloud(c, "fur", cx, 36.5 + dy, 8.0, 7.0, ROUND_B, 2.0)
     ch = cloud(c, "cream", cx, 35 + dy, 4.8, 6.5, [(60, 1.0), (90, 1.1), (120, 1.0), (30, 0.8), (150, 0.8)], 1.8)
     c.lvl[ch] = np.maximum(c.lvl[ch], 1)
@@ -650,8 +683,9 @@ def front(eye="open", mouth="closed", tilt=0, dy=0, ears="up", look=0, paw=0):
         lx = cx + s * 3.5
         if paw and s > 0:
             continue
-        c.paint(rect_mask(c, lx - 1.5, 38, lx + 1.5, GROUND), "cream", 1)
-        c.paint(rect_mask(c, lx - 1.5, 38, lx + 1.5, 39), "cream", 2)
+        c.paint(rect_mask(c, lx - 1.5, 38, lx + 1.5, GROUND), "fur", 1)
+        c.paint(rect_mask(c, lx - 1.5, 38, lx + 1.5, 39), "fur", 2)
+        c.paint(rect_mask(c, lx - 1.5, 43, lx + 1.5, GROUND), "cream", 1)
         px(c, lx - 0.5 if s < 0 else lx - 0.5, 44, "cream", 2)
     hy = 24 + dy
     cloud(c, "fur", cx, hy + 3.5, 9.2, 7.2, [(a, 1.0) for a in range(-180, 180, 30)], 2.2)

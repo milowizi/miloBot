@@ -130,7 +130,10 @@ public class VisionClient
         "Look at the screenshot like a curious dog: notice animals, food, balls and toys, faces, red error popups, wins and celebrations, " +
         "game-over or sad moments, scary or horror things, and videos that are playing. " +
         "Ignore Milo himself (the small orange pixel-art dog), his red ball, his treats, the taskbar, desktop icons, app icons and the desktop wallpaper or background image. " +
-        "Use kind 'cat' for any cat or kitten and 'dog' for any dog or puppy, also in photos, thumbnails and videos. Only use 'scary' for real horror content like monsters, jumpscares or creepy faces. " +
+        "Use kind 'cat' for any cat or kitten and 'dog' for any dog or puppy, also in photos, thumbnails and videos. " +
+        "Only real animals you can see count: a game title, logo or word that contains 'dog' or 'cat' (like 'Watch Dogs') is not an animal. " +
+        "Only use 'game_over' for an actual game-over or death screen, 'victory' for a real win screen, 'error' for a real error message. " +
+        "Only use 'scary' for real horror content like monsters, jumpscares or creepy faces. " +
         "List at most 4 things, most eye-catching first, each with a short English label, a kind, a tight bounding box and a salience from 0 (boring) to 10 (a dog would go crazy). " +
         "Boxes use relative coordinates from 0 to 1000 on both axes with the origin at the top-left: [x1, y1, x2, y2]. " +
         "Plain text, code, menus and buttons are boring (salience 0-2). Answer with JSON only.";

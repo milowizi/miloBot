@@ -58,6 +58,35 @@ In december draagt hij een kerstmuts en op nieuwjaar en jullie "verjaardag" een 
 - **Wild klikken** → hij schrikt
 - **Screenshot** (PrtScn of Win+Shift+S) → hij poseert 📸
 
+### Spelen met wat er ín je apps staat
+
+Milo kijkt (zonder AI, gewoon naar de pixels, ongeveer 1x per seconde) wat er in het venster staat waar je mee bezig bent: **plaatjes**, **vakjes/knoppen** en **blokken tekst**. De bovenkant daarvan wordt een richeltje waar hij op kan springen:
+
+- Op een **plaatje** gaat hij liggen, loert hij over de rand en mept hij ernaar, of hij gaat er gewoon op zitten
+- Over een **blok tekst** loopt hij langzaam met zijn neus omlaag, alsof hij het leest 💬
+- Op een **knop of vakje** tikt hij een paar keer met zijn pootje (hij klikt nooit echt iets aan)
+- Laat je je muis een tijdje op een plaatje rusten, dan komt hij kijken waar jij naar kijkt
+- **Scroll** je terwijl hij ergens op staat, dan valt hij eraf 😅
+
+Uitzetten kan in menu → Opties → Speelt met wat er in je apps staat.
+
+### Kruipen over de rand van je scherm
+
+Af en toe (of via menu → Spelen → Tegen het plafond kruipen) doet Milo een Terraria-crawler na: hij loopt naar de rand van je scherm, klimt de muur op, kruipt ondersteboven langs de bovenkant en laat zich dan vallen, soms precies op je cursor. Soms klimt hij ook gewoon weer naar beneden. Klik je op hem terwijl hij hangt, dan laat hij los.
+
+### Een beetje ondeugend
+
+Een lichte versie van Desktop Goose:
+
+- Ligt je muis een tijdje stil (je leest bv. iets), dan besluipt hij hem en **mept hij hem een stukje opzij**
+- Heel af en toe **trekt hij een klein venster een stukje opzij** met zijn tanden
+
+Hij doet dat nooit met gemaximaliseerde of fullscreen vensters, nooit van je scherm af, niet als je aan het typen bent en niet als je een muisknop ingedrukt houdt. Pak je je muis zelf, dan stopt hij meteen. Uitzetten kan in menu → Opties → Ondeugend.
+
+### Gamen op één scherm
+
+Heb je twee schermen en zit je fullscreen te gamen, dan blijft Milo van dat scherm af en houdt hij je gezelschap op het andere scherm. Heb je maar één scherm, dan verstopt hij zich zoals vroeger.
+
 ### Hij hoort wat je typt
 
 Net als een echte hond reageert hij op bepaalde woorden, in elke app:
@@ -112,7 +141,11 @@ cd tools
 python make_sprites.py
 ```
 
-Je kan `assets\milo.png` ook gewoon zelf bijwerken in Aseprite. Elk frame is 48x48 en de pootjes staan op lijn 45.
+Je kan `assets\milo.png` ook gewoon zelf bijwerken in Aseprite. Elk frame is 48x48 en de pootjes staan op lijn 45. De kleuren zijn gebaseerd op de echte Milo: roodbruine vacht, oranje pootjes met lichte voetjes en een donkere "zadel" over zijn rug en staart (zie `PAL` en `sable()` in het script).
+
+## Testen (voor ontwikkelaars)
+
+Zet `"Debug": true` in `settings.json` en start Milo opnieuw. Schrijf daarna een commando in `%AppData%\MiloBot\command.txt` en Milo voert het binnen een seconde uit: `crawl`, `nudge`, `bat`, `content` of `state` (schrijft zijn toestand in de log).
 
 ## Hoe zwaar is het?
 

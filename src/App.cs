@@ -11,7 +11,7 @@ namespace MiloBot;
 
 public partial class App : IMouseTarget
 {
-    const int TopMargin = 24;
+    const int TopMargin = 24, SideMargin = 12;
     readonly Settings settings = Settings.Load();
     readonly SaveData save = SaveData.Load();
     readonly string assets = Path.Combine(AppContext.BaseDirectory, "assets");
@@ -29,6 +29,7 @@ public partial class App : IMouseTarget
     Sound sound;
     Milo milo;
     Eyes eyes;
+    readonly ContentScanner scanner = new();
     LayeredWindow petWindow, homeWindow, laserWindow;
     Host host;
     int scale;
@@ -51,7 +52,7 @@ public partial class App : IMouseTarget
         host.MouseButtons = b => hearing.Mouse(b, Now);
         host.WindowFlashed = h => sensor.Flashed(h);
         hearing.Enabled = settings.Hearing;
-        sensor = new Sensor(world, own);
+        sensor = new Sensor(world, own) { ContentOf = scanner.Get };
         milo = new Milo(sprites, world, sound, toys)
         {
             WindowRect = WindowRect,
@@ -59,11 +60,16 @@ public partial class App : IMouseTarget
             Home = home,
             Critters = critters,
             BreakReminder = settings.BreakReminder,
-            BreakMinutes = settings.BreakMinutes
+            BreakMinutes = settings.BreakMinutes,
+            Mischief = settings.Mischief,
+            ContentPlay = settings.ContentPlay
         };
         home.Enabled = settings.ShowHome;
         critters.Arrived = c => milo.OnCritter(c);
         eyes = new Eyes(settings);
+        milo.Memory.Cool("nudge", 600, 0);
+        milo.Memory.Cool("batcursor", 240, 0);
+        milo.Memory.Cool("crawl", 90, 0);
         toyMouse = new ToyMouse(this);
         homeMouse = new HomeMouse(this);
         critterMouse = new CritterMouse(this);
@@ -116,7 +122,7 @@ public partial class App : IMouseTarget
         world.PixelScale = scale;
         milo.Scale = scale;
         milo.UpdateBodySize();
-        int w = sprites.FrameW * scale, h = (sprites.FrameH + TopMargin) * scale;
+        int w = (sprites.FrameW + 2 * SideMargin) * scale, h = (sprites.FrameH + TopMargin) * scale;
         if (petWindow == null)
         {
             petWindow = new LayeredWindow(w, h) { Target = this };
@@ -171,6 +177,13 @@ public partial class App : IMouseTarget
         toys.Update(world, dt, scale, WindowRect);
         critters.Update(world, milo, dt, scale, settings.Critters && !milo.Hidden);
         eyes.Update(now, world, milo, IgnoreRects());
+        scanner.Standing = milo.Body.OnGround ? milo.Body.Platform?.Ledge : null;
+        scanner.Update(now, world, settings.ContentPlay && !milo.Hidden, scanner.Standing != null, IgnoreRects());
+        if (scanner.NewPictures.Count > 0)
+        {
+            milo.OnNewPicture(scanner.NewPictures[0]);
+            scanner.NewPictures.Clear();
+        }
         sensor.ConsumeAudioFlags();
         world.AudioOnset = false;
         Render();
@@ -212,6 +225,11 @@ public partial class App : IMouseTarget
             lastCpu = cpu;
             lastPerfT = now;
         }
+        if (settings.Debug && now >= nextCommand)
+        {
+            nextCommand = now + 1;
+            RunDebugCommand();
+        }
         if (now >= nextTip)
         {
             nextTip = now + 1.5;
@@ -238,7 +256,7 @@ public partial class App : IMouseTarget
         if (!l.On) return;
         l.X = world.CursorX;
         l.Y = world.CursorY;
-        if (now - l.StartedAt > 120 || milo.Hidden) l.On = false;
+        if (now - l.StartedAt > 120 || milo.Hidden || world.Blocked(l.X, l.Y)) l.On = false;
     }
 
     string Describe()
@@ -291,6 +309,11 @@ public partial class App : IMouseTarget
                 "wherecat" => "zoekt de kat",
                 "playbow" => "wil spelen",
                 "photo" => "poseert",
+                "crawl" => "kruipt over de rand van je scherm",
+                "content" => "bekijkt iets in je app",
+                "nudge" => "trekt aan een venster",
+                "batcursor" => "loert op je muis",
+                "staretcursor" or "stareatcursor" => "staart naar je muis",
                 var s when s.StartsWith("investigate") => "onderzoekt iets",
                 var s => s
             }
@@ -301,7 +324,7 @@ public partial class App : IMouseTarget
     {
         var list = new List<RectD>
         {
-            new(milo.Body.X - 24 * scale, milo.Body.Y - (sprites.Ground + TopMargin) * scale, milo.Body.X + 24 * scale, milo.Body.Y + 3 * scale)
+            Grow(milo.HitRect(), 6 * scale, 12 * scale)
         };
         foreach (var t in toys.Items)
             list.Add(new RectD(t.Body.X - 8 * scale, t.Body.Y - 12 * scale, t.Body.X + 8 * scale, t.Body.Y + 2 * scale));
@@ -311,14 +334,71 @@ public partial class App : IMouseTarget
         return list;
     }
 
+    double nextCommand;
+
+    // Only with "Debug": true in settings.json. Write a command into command.txt next to it to make Milo do
+    // something right away (handy for testing): crawl, nudge, bat, content, state.
+    void RunDebugCommand()
+    {
+        string file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MiloBot", "command.txt");
+        if (!File.Exists(file)) return;
+        string cmd;
+        try { cmd = File.ReadAllText(file).Trim().ToLowerInvariant(); File.Delete(file); }
+        catch { return; }
+        Log.Write("debug command: " + cmd);
+        switch (cmd)
+        {
+            case "crawl": milo.StartCrawl(); break;
+            case "nudge":
+                var p = world.Platforms.FirstOrDefault(q => !q.IsFloor && !q.IsContent && !Native.IsZoomed(q.Hwnd));
+                var b = p == null ? null : WindowNudge.TryMake(milo, p);
+                if (b != null) milo.Set(b); else Log.Write("nothing to nudge");
+                break;
+            case "bat": milo.Set(new CursorBat(milo)); break;
+            case "content":
+                var c = milo.ContentHere().ToList();
+                Log.Write("content here: " + string.Join(" ", c.Select(x => x.ToString())));
+                if (c.Count > 0) milo.Set(ContentPlans.Visit(milo, c[Random.Shared.Next(c.Count)]));
+                break;
+            case "state":
+                Log.Write($"state {milo.Current?.Name ?? "-"} {milo.Posture} q={milo.Quarter} at {milo.Body.X:0},{milo.Body.Y:0} on={milo.Body.Platform} platforms={world.Platforms.Count} content={world.Platforms.Count(x => x.IsContent)}");
+                break;
+        }
+    }
+
+    static RectD Grow(RectD r, double dx, double dy) => new(r.Left - dx, r.Top - dy, r.Right + dx, r.Bottom + dy);
+
     void UpdateHidden(double now)
     {
         bool hide = false;
+        World.Screen game = null;
         if (settings.HideInFullscreen && world.ForegroundFullscreen && world.ForegroundKind != AppKind.Desktop)
+            game = world.ScreenAt(world.ForegroundRect.CenterX, world.ForegroundRect.CenterY);
+        // With more than one screen the game's screen is simply off-limits and Milo keeps you company on the other one.
+        var blocked = game != null && world.Screens.Count > 1 ? game : null;
+        if (blocked != world.BlockedScreen)
         {
-            var s = world.ScreenAt(world.ForegroundRect.CenterX, world.ForegroundRect.CenterY);
+            world.BlockedScreen = blocked;
+            sensor.ForceRefresh();
+            home.Blocked = blocked != null && blocked.Bounds.Contains(home.BedX, home.Y - 5);
+            homeKey = "";
+        }
+        if (game != null)
+        {
             var ms = world.ScreenAt(milo.Body.X, milo.Body.Y - 10);
-            hide = s == ms;
+            hide = game == ms;
+            if (hide && blocked != null && !dragging && milo.Posture != Posture.Held)
+            {
+                var floor = world.Platforms.Where(p => p.IsFloor && !blocked.Bounds.Contains(p.X1 + 1, p.Y - 5))
+                    .OrderBy(p => Math.Min(Math.Abs(p.X1 - milo.Body.X), Math.Abs(p.X2 - milo.Body.X))).FirstOrDefault();
+                if (floor != null)
+                {
+                    double edge = Math.Abs(floor.X2 - milo.Body.X) < Math.Abs(floor.X1 - milo.Body.X) ? floor.X2 - 30 * scale : floor.X1 + 30 * scale;
+                    milo.MoveTo(floor, edge);
+                    Log.Write($"moved to the other screen for fullscreen {world.ForegroundProcess}");
+                    hide = false;
+                }
+            }
         }
         if (hide && !milo.Hidden)
         {

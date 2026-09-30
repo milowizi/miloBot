@@ -20,6 +20,8 @@ public class Settings
     public bool ShowHome { get; set; } = true;
     public bool Critters { get; set; } = true;
     public bool Hearing { get; set; } = true;
+    public bool Mischief { get; set; } = true;
+    public bool ContentPlay { get; set; } = true;
 
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MiloBot");
     static string FilePath => Path.Combine(Dir, "settings.json");

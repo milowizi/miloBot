@@ -1,12 +1,17 @@
 namespace MiloBot.World;
 
+/// <summary>Which way Milo's feet point. Floor is normal; the others are for crawling like a Terraria crawler.</summary>
+public enum Surface { Floor, WallLeft, Ceiling, WallRight }
+
 public class Body
 {
     public double X, Y, VX, VY;
     public bool OnGround;
+    public Surface Surface = Surface.Floor;
+    public bool Climbing => Surface != Surface.Floor;
     public Platform Platform;
     public double HalfWidth = 30, Height = 60;
-    public double RelX;
+    public double RelX, LedgeY;
     public double LastPlatformMove;
     public double Shove, PlatformDX, PlatformDY;
     public int Lost;
@@ -19,6 +24,7 @@ public class Body
         Y = p.Y;
         VY = 0;
         if (!p.IsFloor && windowRect(p.Hwnd) is RectD r) RelX = X - r.Left;
+        if (p.Ledge != null) LedgeY = p.Ledge.Y;
     }
 
     public void Detach()
@@ -118,6 +124,7 @@ public static class Physics
         var rect = windowRect(p.Hwnd);
         if (rect == null) { b.Lost = 1; b.LostHwnd = p.Hwnd; b.Detach(); return StepResult.Detached; }
         var r = rect.Value;
+        if (p.Ledge != null) return StickContent(b, w, p, r);
         double nx = r.Left + b.RelX;
         double dx = nx - b.X, dy = r.Top - b.Y;
         bool moving = Math.Abs(dx) > 0.5 || Math.Abs(dy) > 0.5;
@@ -140,6 +147,47 @@ public static class Physics
         {
             var live = w.Find(p.Hwnd, b.X, b.Y);
             if (live == null || Math.Abs(live.Y - b.Y) > 3) { b.Lost = 2; b.LostHwnd = p.Hwnd; b.Detach(); return StepResult.Detached; }
+            b.Platform = live;
+        }
+        return StepResult.None;
+    }
+
+    // Standing on something inside a window: moves with the window, and falls off when the page scrolls
+    // the thing away or another window covers it.
+    static StepResult StickContent(Body b, WorldState w, Platform p, RectD r)
+    {
+        var l = p.Ledge;
+        double ty = r.Top + l.Y;
+        if (!l.Alive || Math.Abs(l.Y - b.LedgeY) > 6)
+        {
+            b.Lost = 4;
+            b.LostHwnd = p.Hwnd;
+            b.Detach();
+            return StepResult.Detached;
+        }
+        double nx = r.Left + b.RelX;
+        double dx = nx - b.X, dy = ty - b.Y;
+        if (Math.Abs(dx) > 0.5 || Math.Abs(dy) > 0.5)
+        {
+            b.LastPlatformMove = w.Now;
+            b.Shove = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            b.PlatformDX = dx;
+            b.PlatformDY = dy;
+            b.X = nx;
+            b.Y = ty;
+            b.LedgeY = l.Y;
+            p.Y = ty;
+            p.X1 += dx;
+            p.X2 += dx;
+            if (dy < -35) { b.Lost = 3; b.Detach(); b.VY = dy * 25; return StepResult.Detached; }
+        }
+        if (b.X < r.Left + l.X1 - 2 || b.X > r.Left + l.X2 + 2) { b.Lost = 2; b.Detach(); return StepResult.Detached; }
+        if (w.Now - b.LastPlatformMove > 0.6)
+        {
+            Platform live = null;
+            foreach (var q in w.Platforms)
+                if (q.Ledge == l && q.Contains(b.X)) { live = q; break; }
+            if (live == null) { b.Lost = 2; b.LostHwnd = p.Hwnd; b.Detach(); return StepResult.Detached; }
             b.Platform = live;
         }
         return StepResult.None;

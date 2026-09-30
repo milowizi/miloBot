@@ -4,6 +4,7 @@ public struct RectD
 {
     public double Left, Top, Right, Bottom;
     public RectD(double l, double t, double r, double b) { Left = l; Top = t; Right = r; Bottom = b; }
+    public RectD Offset(double dx, double dy) => new(Left + dx, Top + dy, Right + dx, Bottom + dy);
     public double Width => Right - Left;
     public double Height => Bottom - Top;
     public double CenterX => (Left + Right) / 2;
@@ -17,9 +18,32 @@ public class Platform
     public double Y, X1, X2;
     public bool IsFloor;
     public string Owner = "";
+    public ContentLedge Ledge;
+    public bool IsContent => Ledge != null;
     public double Width => X2 - X1;
     public bool Contains(double x, double margin = 0) => x >= X1 + margin && x <= X2 - margin;
-    public override string ToString() => $"{(IsFloor ? "floor" : Owner)} y={Y:0} [{X1:0},{X2:0}]";
+    public override string ToString() => $"{(IsFloor ? "floor" : IsContent ? Ledge.Kind + " in " + Owner : Owner)} y={Y:0} [{X1:0},{X2:0}]";
+}
+
+/// <summary>The top edge of something inside a window (a picture, a panel, a block of text), relative to the window's top-left.</summary>
+public class ContentLedge
+{
+    public long Id;
+    public string Kind = "box";
+    public double X1, X2, Y;
+    public RectD Block;
+    public int Hits, Misses;
+    public bool Alive = true;
+    public bool Confirmed => Hits >= 2 && Alive;
+}
+
+public class WindowContent
+{
+    public IntPtr Hwnd;
+    public double Width, Height;
+    public List<ContentLedge> Ledges = new();
+    public double ScannedAt;
+    public bool Busy;
 }
 
 public class Screen
@@ -49,6 +73,9 @@ public class WorldState
     public int Hour = 12;
     public int PixelScale = 3;
     public double DpiScale = 1.0;
+    public Screen BlockedScreen;
+
+    public bool Blocked(double x, double y) => BlockedScreen != null && BlockedScreen.Bounds.Contains(x, y);
 
     public Screen ScreenAt(double x, double y)
     {
@@ -92,7 +119,7 @@ public class WorldState
         Platform best = null;
         foreach (var p in Platforms)
         {
-            if (p.Hwnd != hwnd || !p.Contains(x)) continue;
+            if (p.Hwnd != hwnd || p.Ledge != null || !p.Contains(x)) continue;
             if (best == null || Math.Abs(p.Y - y) < Math.Abs(best.Y - y)) best = p;
         }
         return best;

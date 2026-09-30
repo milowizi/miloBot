@@ -36,6 +36,7 @@ public partial class App
             $"Vandaag: {t.Tricks} trucjes, {t.Zoomies}x zoomies, {t.Tugs}x touwtrekken",
             $"Vandaag: {t.Rides}x gesurfd, {t.Dizzy}x duizelig, {t.Pounces}x gesprongen, {t.Swats}x naar je muis gemept",
             $"Vandaag: {t.Words} woordjes gehoord, {t.Falls}x van een venster gevallen",
+            $"Vandaag: {t.Climbs}x tegen het plafond, {t.Pictures} plaatjes bekeken, {t.Reads}x \"gelezen\", {t.Nudges}x aan een venster getrokken, {t.Bats}x je muis gemept",
             $"Totaal: {all.Pets}x geaaid, {all.Fetches}x apport, {all.Gifts} cadeautjes, {all.Walks} wandelingen",
             $"Beste trucje: {best.Name} ({Tricks.Skill(milo, best.Id) * 100:0}%)",
             $"Honger: {save.Hunger * 100:0}%   Voerbak: {save.BowlFood * 100:0}%"
@@ -70,7 +71,8 @@ public partial class App
                     new() { Id = 5, Text = milo.Laser.On ? "Laserpuntje uit" : "Laserpuntje aan", Checked = milo.Laser.On },
                     new() { Id = 3, Text = "Snoepje geven" },
                     new() { Id = 6, Text = "Voerbak vullen", Disabled = !home.Active || save.BowlFood >= 0.99 },
-                    new() { Id = 7, Text = "Vlinder loslaten" }
+                    new() { Id = 7, Text = "Vlinder loslaten" },
+                    new() { Id = 9, Text = "Tegen het plafond kruipen" }
                 }
             },
             new() { Text = "Trucjes", Children = trickItems },
@@ -109,7 +111,10 @@ public partial class App
                     new() { Id = 24, Text = $"Pauze-herinnering (na {settings.BreakMinutes} min)", Checked = settings.BreakReminder },
                     new() { Id = 28, Text = "Mandje en voerbak tonen", Checked = settings.ShowHome },
                     new() { Id = 29, Text = "Vlinders en vogels", Checked = settings.Critters },
-                    new() { Id = 32, Text = "Luistert naar wat je typt", Checked = settings.Hearing }
+                    new() { Id = 32, Text = "Luistert naar wat je typt", Checked = settings.Hearing },
+                    new() { Id = 33, Text = "Ondeugend (trekt aan vensters, mept je muis)", Checked = settings.Mischief },
+                    new() { Id = 34, Text = "Speelt met wat er in je apps staat", Checked = settings.ContentPlay },
+                    new() { Text = "In je app: " + (settings.ContentPlay ? scanner.Summary : "uit"), Disabled = true }
                 }
             },
             new() { Separator = true },
@@ -167,6 +172,9 @@ public partial class App
             case 28: settings.ShowHome = !settings.ShowHome; home.Enabled = settings.ShowHome; homeKey = ""; settings.Save(); break;
             case 29: settings.Critters = !settings.Critters; settings.Save(); break;
             case 32: settings.Hearing = !settings.Hearing; hearing.Enabled = settings.Hearing; hearing.Clear(); settings.Save(); break;
+            case 33: settings.Mischief = !settings.Mischief; milo.Mischief = settings.Mischief; settings.Save(); break;
+            case 34: settings.ContentPlay = !settings.ContentPlay; milo.ContentPlay = settings.ContentPlay; settings.Save(); sensor.ForceRefresh(); break;
+            case 9: milo.StartCrawl(); break;
             case 30: foreach (var t in toys.Items) t.Gone = true; break;
             case 31: try { Process.Start(new ProcessStartInfo(Settings.LogPath) { UseShellExecute = true }); } catch { } break;
             case 99: running = false; break;

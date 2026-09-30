@@ -248,12 +248,12 @@ public partial class Milo
         hopping = false;
         pouncing = false;
         ForcePosture(Posture.Air);
-        if (Body.Lost == 1)
+        if (Body.Lost is 1 or 4)
         {
             lostPending = true;
             lostX = Body.X;
             lostY = Body.Y;
-            Emote("exclaim", 1.2);
+            Emote(Body.Lost == 4 ? "question" : "exclaim", 1.2);
         }
         Body.Lost = 0;
     }

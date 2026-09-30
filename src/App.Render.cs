@@ -25,16 +25,32 @@ public partial class App
         return null;
     }
 
+    // Where Milo's feet go on the (square) pet canvas for each quarter turn, in sprite pixels.
+    (double x, double y) FeetOnCanvas(int quarter)
+    {
+        double cw = sprites.FrameW + 2 * SideMargin, ch = sprites.FrameH + TopMargin;
+        return quarter switch
+        {
+            1 => (3, ch / 2),
+            2 => (cw / 2, 3),
+            3 => (cw - 3, ch / 2),
+            _ => (SideMargin + sprites.FrameW / 2.0, TopMargin + sprites.Ground)
+        };
+    }
+
     void Render()
     {
         if (milo.Hidden) return;
         int frame = milo.Anim.SheetFrame;
         bool flip = milo.Facing < 0;
-        int x = (int)Math.Round(milo.Body.X - sprites.FrameW / 2.0 * scale);
-        int y = (int)Math.Round(milo.Body.Y - (sprites.Ground + TopMargin + milo.RenderLift) * scale);
+        int q = milo.Quarter;
+        var feet = FeetOnCanvas(q);
+        double lift = q == 0 ? milo.RenderLift : 0;
+        int x = (int)Math.Round(milo.Body.X - feet.x * scale);
+        int y = (int)Math.Round(milo.Body.Y - (feet.y + lift) * scale);
         var held = toys.InMouth;
         string hat = CurrentHat();
-        string key = $"{frame}|{flip}|{x}|{y}|{held?.Kind}|{hat}|{milo.Particles.Count}";
+        string key = $"{frame}|{flip}|{q}|{x}|{y}|{held?.Kind}|{hat}|{milo.Particles.Count}";
         if (key == lastRenderKey && milo.Particles.Count == 0) return;
         lastRenderKey = key;
         winX = x;
@@ -42,13 +58,23 @@ public partial class App
         var c = petWindow.Canvas;
         c.Clear();
         var (fx, fy) = sprites.FrameOrigin(frame);
-        c.Draw(sprites.Sheet, fx, fy, sprites.FrameW, sprites.FrameH, 0, TopMargin * scale, scale, flip);
+        double ax = sprites.FrameW / 2.0, ay = sprites.Ground;
+        c.DrawTurned(sprites.Sheet, fx, fy, sprites.FrameW, sprites.FrameH, ax, ay, feet.x, feet.y, q, scale, flip);
         if (hat != null && sprites.Hats.TryGetValue(hat, out var hatSheet))
-            c.Draw(hatSheet, fx, fy, sprites.FrameW, sprites.FrameH, 0, TopMargin * scale, scale, flip);
+            c.DrawTurned(hatSheet, fx, fy, sprites.FrameW, sprites.FrameH, ax, ay, feet.x, feet.y, q, scale, flip);
         var a = sprites.Anchors[frame];
-        double mx = flip ? sprites.FrameW - a[0] : a[0];
-        double hx = flip ? sprites.FrameW - a[2] : a[2];
-        if (held != null) DrawIcon(c, held.Icon, mx, a[1] + TopMargin + 1, 1);
+        (double x, double y) OnCanvas(double sx, double sy)
+        {
+            if (flip) sx = sprites.FrameW - sx;
+            var (rx, ry) = Bitmap.Turn(sx - ax, sy - ay, q);
+            return (feet.x + rx, feet.y + ry);
+        }
+        var mouth = OnCanvas(a[0], a[1] + 1);
+        var head = OnCanvas(a[2], a[3]);
+        // Emotes always float "above" him, which is away from whatever he's standing on.
+        var (ux, uy) = Bitmap.Turn(0, -1, q);
+        if (q != 0) head = (Math.Clamp(head.x + ux * 6, 8, sprites.FrameW + 2 * SideMargin - 8), Math.Clamp(head.y + uy * 6, 8, sprites.FrameH + TopMargin - 8));
+        if (held != null) DrawIcon(c, held.Icon, mouth.x, mouth.y, 1);
         foreach (var p in milo.Particles)
         {
             double age = p.MaxLife - p.Life;
@@ -60,12 +86,12 @@ public partial class App
             }
             if (p.Dream)
             {
-                double bx = Math.Clamp(hx, 16, sprites.FrameW - 16), by = a[3] + TopMargin - 10 + Math.Sin(age * 2) * 0.6;
+                double bx = Math.Clamp(head.x, SideMargin + 16, SideMargin + sprites.FrameW - 16), by = head.y - 10 + Math.Sin(age * 2) * 0.6;
                 DrawProp(c, "bubble", bx, by, alpha);
                 DrawIcon(c, p.Icon, bx + 1, by - 2, alpha);
                 continue;
             }
-            double px = hx + p.X, py = a[3] + TopMargin + p.Y - 4;
+            double px = head.x + p.X, py = head.y + p.Y - 4;
             if (p.OnHead) py += Math.Sin(age * 6) * 0.8 - 3;
             DrawIcon(c, p.Icon, px, py, alpha);
         }
@@ -96,7 +122,7 @@ public partial class App
                 own.Add(w.Hwnd);
                 toyWindows[t] = w;
             }
-            if (t.InMouth || t.Hidden || milo.Hidden) { w.Show(false); continue; }
+            if (t.InMouth || t.Hidden || milo.Hidden || world.Blocked(t.Body.X, t.Body.Y - 5)) { w.Show(false); continue; }
             w.Canvas.Clear();
             w.Canvas.Draw(sprites.Icons, sprites.IconIndex[t.Icon] * 16, 0, 16, 16, 0, 0, scale);
             int x = (int)Math.Round(t.Body.X - 8 * scale);
@@ -147,7 +173,7 @@ public partial class App
                 own.Add(w.Hwnd);
                 critterWindows[cr] = w;
             }
-            if (milo.Hidden || sprites.CritterSheet == null || !sprites.CritterIndex.TryGetValue(cr.Frame, out int i)) { w.Show(false); continue; }
+            if (milo.Hidden || world.Blocked(cr.X, cr.Y - 5) || sprites.CritterSheet == null || !sprites.CritterIndex.TryGetValue(cr.Frame, out int i)) { w.Show(false); continue; }
             int cs = sprites.CritterSize;
             w.Canvas.Clear();
             w.Canvas.Draw(sprites.CritterSheet, i * cs, 0, cs, cs, 0, 0, scale, cr.Facing < 0);

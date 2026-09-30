@@ -6,6 +6,7 @@ public class Home
 {
     public bool Enabled = true;
     public bool Valid;
+    public bool Blocked;
     public double BedX, BowlX, Y;
     int scale = 3;
 
@@ -20,7 +21,7 @@ public class Home
         Valid = true;
     }
 
-    public bool Active => Enabled && Valid;
+    public bool Active => Enabled && Valid && !Blocked;
     public double Left => BowlX - 16 * scale;
     public double Right => BedX + 16 * scale;
     public double Top => Y - 23 * scale;

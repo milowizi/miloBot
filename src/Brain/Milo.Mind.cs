@@ -66,7 +66,7 @@ public partial class Milo
         TrackAir();
         var r = HitRect();
         Hover = !Hidden && r.Contains(W.CursorX, W.CursorY);
-        bool canPet = Hover && Posture != Posture.Held && Posture != Posture.Air && Math.Abs(W.CursorVY) < 3000;
+        bool canPet = Hover && !Body.Climbing && Posture != Posture.Held && Posture != Posture.Air && Math.Abs(W.CursorVY) < 3000;
         if (canPet)
         {
             double dx = W.CursorX - lastStrokeX;
@@ -121,6 +121,8 @@ public partial class Milo
         double night = IsNight ? 1 : 0;
         var lying = Toys.Items.FirstOrDefault(t => t.Fetchable && !t.InMouth && !t.HeldByUser && t.Body.OnGround && Now - t.LastTouched > 180 && Now - t.ThrownAt > 60);
         bool leashDue = BreakReminder && activeStreak > BreakMinutes * 60 && !userAway && Memory.Ready("leash", Now) && Home.Active;
+        var content = ContentPlay && !userAway ? ContentHere().ToList() : new List<Platform>();
+        var nudge = !userAway ? NudgeCandidate() : null;
         var options = new List<(string name, double score, Func<Behavior> make)>
         {
             ("idle", 0.8, () => new Rest(Posture.Stand, 2 + Rng.NextDouble() * 4)),
@@ -141,6 +143,11 @@ public partial class Milo
             ("perch", CursorUnderMe(U(300)) && Math.Abs(W.CursorX - Body.X) < U(200) && !userAway ? 0.9 : 0, () => new Perch()),
             ("buddy", typingStreak > 25 && W.KeysPerSecond > 2 && !W.ForegroundFullscreen && W.ForegroundKind != AppKind.Desktop && Memory.Ready("buddy", Now) ? 1.3 : 0, () => { Memory.Cool("buddy", 240, Now); return ScreenPlans.TypingBuddy(this); }),
             ("leash", leashDue ? 6 : 0, () => { Memory.Cool("leash", 1800, Now); activeStreak = 0; WalkAccepted = false; return Plans.BringLeash(this); }),
+            ("content", content.Count > 0 ? 0.45 + Boredom * 0.8 + Math.Min(0.4, content.Count * 0.05) : 0, () => ContentPlans.Visit(this, PickContent(content))),
+            ("crawl", Energy > 0.5 && !userAway && !IsNight && Toys.InMouth == null && Memory.Ready("crawl", Now) ? 0.2 + Boredom * 0.35 : 0,
+                () => { Memory.Cool("crawl", 240, Now); return (Behavior)Crawl.TryMake(this) ?? Plans.Wander(this); }),
+            ("batcursor", CanBatCursor ? 2.2 : 0, () => new CursorBat(this)),
+            ("nudge", nudge != null ? 0.3 + Boredom * 0.5 : 0, () => WindowNudge.TryMake(this, nudge) ?? Plans.Wander(this)),
         };
         foreach (ref var o in System.Runtime.InteropServices.CollectionsMarshal.AsSpan(options))
             if (o.name == lastChoice && o.name != "nap") o.score *= 0.45;
@@ -164,6 +171,7 @@ public partial class Milo
 
     public void OnGrab()
     {
+        Body.Surface = Surface.Floor;
         Body.Detach();
         Body.VX = Body.VY = 0;
         Set(new Held());

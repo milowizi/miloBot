@@ -56,6 +56,45 @@ public class Bitmap
         }
     }
 
+    /// <summary>
+    /// Draws a sprite frame turned by quarter turns (clockwise) around the point (ax, ay) of the frame,
+    /// which lands on (px, py) of this bitmap. Coordinates are in unscaled sprite pixels.
+    /// </summary>
+    public void DrawTurned(Bitmap src, int sx, int sy, int sw, int sh, double ax, double ay, double px, double py, int quarter, int scale, bool flipX)
+    {
+        for (int y = 0; y < sh; y++)
+        {
+            int srow = (sy + y) * src.Width;
+            for (int x = 0; x < sw; x++)
+            {
+                uint p = src.Pixels[srow + (flipX ? sx + sw - 1 - x : sx + x)];
+                if (p == 0) continue;
+                var (rx, ry) = Turn(x + 0.5 - ax, y + 0.5 - ay, quarter);
+                int bx = (int)Math.Floor(px + rx) * scale, by = (int)Math.Floor(py + ry) * scale;
+                for (int yy = 0; yy < scale; yy++)
+                {
+                    int ty = by + yy;
+                    if (ty < 0 || ty >= Height) continue;
+                    int row = ty * Width;
+                    for (int xx = 0; xx < scale; xx++)
+                    {
+                        int tx = bx + xx;
+                        if (tx < 0 || tx >= Width) continue;
+                        Pixels[row + tx] = Over(p, Pixels[row + tx]);
+                    }
+                }
+            }
+        }
+    }
+
+    public static (double x, double y) Turn(double x, double y, int quarter) => (quarter & 3) switch
+    {
+        1 => (-y, x),
+        2 => (-x, -y),
+        3 => (y, -x),
+        _ => (x, y)
+    };
+
     static uint Fade(uint p, int a255)
     {
         uint a = (p >> 24) * (uint)a255 / 255;

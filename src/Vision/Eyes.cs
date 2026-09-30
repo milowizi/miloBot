@@ -151,6 +151,13 @@ public class Eyes
     static readonly string[] AnimalWords = { "animal", "pet", "bird", "fish", "horse", "rabbit", "bunny", "hamster", "fox", "bear", "lion", "tiger", "cow", "pig", "sheep", "goat", "duck", "owl", "parrot", "snake", "lizard", "turtle", "frog", "deer", "wolf", "monkey", "elephant", "giraffe", "panda", "penguin", "mouse", "mice", "rat", "squirrel", "dinosaur", "dragon", "butterfly", "bee", "insect", "bug", "cheetah", "leopard", "koala", "otter", "seal", "whale", "dolphin", "shark", "crab", "raccoon", "hedgehog", "ferret", "chick", "creature", "critter", "capybara", "llama", "alpaca", "sloth", "zebra", "kangaroo", "pigeon", "seagull", "crow", "chicken" };
     static readonly string[] JunkWords = { "wallpaper", "background", "desktop", "icon", "taskbar", "folder", "file", "file explorer", "window", "starburst", "sunburst" };
     static readonly string[] SelfWords = { "pixel art dog", "pixel-art dog", "pixel dog", "pixelated dog", "milo" };
+    // Names that contain an animal word but aren't animals (the log had "Watch Dogs 2 logo" as a dog, several times).
+    static readonly string[] FakeAnimalWords = { "watch dog", "watch_dog", "watchdog", "dog tag", "dogecoin", "underdog", "top dog", "dog-ear", "catalog", "category", "cat5", "catapult", "copycat" };
+    // A logo, title or piece of text that mentions an animal is still just text.
+    static readonly string[] TextWords = { "logo", "title", "text", "icon", "splash", "wordmark", "banner", "font", "menu", "button", "label", "caption", "heading", "headline", "tab", "link", "name", "username", "channel", "search", "result" };
+    static readonly string[] GameOverWords = { "game over", "gameover", "you died", "you lose", "you lost", "defeat", "defeated", "wasted", "died", "dead", "failed", "mission failed", "retry", "try again", "continue?" };
+    static readonly string[] VictoryWords = { "victory", "win", "winner", "won", "you win", "congratulations", "congrats", "trophy", "level complete", "complete", "cleared", "success", "achievement", "gold", "champion", "first place", "1st" };
+    static readonly string[] ErrorWords = { "error", "fail", "failed", "crash", "exception", "warning", "not responding", "denied", "invalid", "problem", "blue screen", "bsod" };
 
     static bool Has(string l, string[] words)
     {
@@ -160,8 +167,13 @@ public class Eyes
 
     public static string FixKind(SeenThing t)
     {
-        string l = t.Label.ToLowerInvariant();
+        string l = t.Label.ToLowerInvariant().Replace('_', ' ');
         if (Has(l, SelfWords)) return null;
+        if (FakeAnimalWords.Any(l.Contains) || l.Contains("watch dogs") || l.Contains("watchdogs")) return "other";
+        if (Has(l, TextWords) && t.Kind is "dog" or "cat" or "animal" or "food" or "cute") return t.Kind is "cute" ? "cute" : "text";
+        if (t.Kind == "game_over" && !Has(l, GameOverWords)) return Has(l, ErrorWords) ? "error" : "other";
+        if (t.Kind is "victory" or "success" && !Has(l, VictoryWords)) return "other";
+        if (t.Kind is "error" or "warning" && !Has(l, ErrorWords) && !l.Contains("popup") && !l.Contains("alert")) return "other";
         bool living = t.Kind is "dog" or "cat" or "animal" or "cute" or "scary" or "food" or "ball" or "toy" or "person_face" or "other";
         if (living && Has(l, JunkWords) && !Has(l, CatWords) && !Has(l, DogWords) && !Has(l, FoodWords)) return null;
         if (Has(l, FoodWords) && t.Kind is "animal" or "cute" or "other" or "food" or "dog") return "food";

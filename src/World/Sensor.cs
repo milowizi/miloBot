@@ -144,6 +144,18 @@ public class Sensor
         return true;
     }
 
+    // Windows' own popups (emoji panel, Win+Shift+S overlay, start menu, alt-tab) cover the whole screen
+    // but aren't apps the user is in. Treating them as fullscreen made Milo hide mid-screenshot.
+    static readonly HashSet<string> ShellOverlays = new()
+    {
+        "textinputhost", "screenclippinghost", "shellexperiencehost", "startmenuexperiencehost", "searchhost",
+        "searchapp", "lockapp", "shellhost", "snippingtool", "gamebar", "widgets"
+    };
+    static readonly HashSet<string> OverlayClasses = new()
+    {
+        "XamlExplorerHostIslandWindow", "MultitaskingViewFrame", "ForegroundStaging", "TaskSwitcherWnd", "TopLevelWindowForOverflowXamlIsland"
+    };
+
     void RefreshForeground()
     {
         var fg = Native.GetForegroundWindow();
@@ -151,8 +163,9 @@ public class Sensor
         Native.GetWindowThreadProcessId(fg, out uint pid);
         if (pid == ownPid) return;
         string proc = ProcessName(pid);
-        string title = Native.WindowText(fg);
         string cls = Native.ClassName(fg);
+        if (ShellOverlays.Contains(proc) || OverlayClasses.Contains(cls)) return;
+        string title = Native.WindowText(fg);
         var r = Native.FrameBounds(fg);
         var rect = new RectD(r.Left, r.Top, r.Right, r.Bottom);
         bool desktop = cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd" || cls == "Shell_SecondaryTrayWnd";
@@ -235,28 +248,54 @@ public class Sensor
             if (!firstScan && !knownWindows.Contains(hwnd) && r.Width > 200 && r.Height > 150)
                 Events.Add(new WorldEvent { Kind = WorldEventKind.WindowOpened, Rect = new RectD(r.Left, r.Top, r.Right, r.Bottom) });
             var screen = w.ScreenAt((r.Left + r.Right) / 2.0, r.Top);
-            if (screen == null) continue;
+            if (screen == null || screen == w.BlockedScreen) continue;
+            AddContentLedges(platforms, i, hwnd, r, title, screen, scale);
             double y = r.Top;
             if (y < screen.Work.Top + 70 * scale || y > screen.Work.Bottom - 40 * scale) continue;
             if (r.Width < minWidth) continue;
-            var segs = new List<(double a, double b)> { (Math.Max(r.Left + 4, screen.Bounds.Left), Math.Min(r.Right - 4, screen.Bounds.Right)) };
-            for (int j = 0; j < i && segs.Count > 0; j++)
-            {
-                var o = scratch[j].r;
-                if (o.Top <= y + 2 && o.Bottom >= y - 12 * scale)
-                    segs = Subtract(segs, o.Left, o.Right);
-            }
-            foreach (var (a, b) in segs)
+            foreach (var (a, b) in Visible(i, y, Math.Max(r.Left + 4, screen.Bounds.Left), Math.Min(r.Right - 4, screen.Bounds.Right), scale))
                 if (b - a >= 24 * scale)
                     platforms.Add(new Platform { Hwnd = hwnd, Y = y, X1 = a, X2 = b, Owner = title });
         }
         knownWindows = nowWindows;
         firstScan = false;
         foreach (var s in w.Screens)
-            platforms.Add(new Platform { Hwnd = IntPtr.Zero, Y = s.Work.Bottom, X1 = s.Work.Left, X2 = s.Work.Right, IsFloor = true, Owner = "floor" });
+            if (s != w.BlockedScreen)
+                platforms.Add(new Platform { Hwnd = IntPtr.Zero, Y = s.Work.Bottom, X1 = s.Work.Left, X2 = s.Work.Right, IsFloor = true, Owner = "floor" });
         MergeFloors(platforms);
         w.Platforms = platforms;
     }
+
+    /// <summary>The parts of a horizontal line at y that aren't covered by windows above window i.</summary>
+    List<(double a, double b)> Visible(int i, double y, double left, double right, double scale)
+    {
+        var segs = new List<(double a, double b)> { (left, right) };
+        for (int j = 0; j < i && segs.Count > 0; j++)
+        {
+            var o = scratch[j].r;
+            if (o.Top <= y + 2 && o.Bottom >= y - 12 * scale)
+                segs = Subtract(segs, o.Left, o.Right);
+        }
+        return segs;
+    }
+
+    void AddContentLedges(List<Platform> platforms, int i, IntPtr hwnd, RECT r, string title, Screen screen, double scale)
+    {
+        var wc = ContentOf?.Invoke(hwnd);
+        if (wc == null || Math.Abs(wc.Width - r.Width) > 2 || Math.Abs(wc.Height - r.Height) > 2) return;
+        foreach (var l in wc.Ledges)
+        {
+            if (!l.Confirmed) continue;
+            double y = r.Top + l.Y;
+            if (y < screen.Work.Top + 40 * scale || y > screen.Work.Bottom - 30 * scale) continue;
+            double left = Math.Max(r.Left + l.X1, screen.Bounds.Left), right = Math.Min(r.Left + l.X2, screen.Bounds.Right);
+            foreach (var (a, b) in Visible(i, y, left, right, scale))
+                if (b - a >= 24 * scale)
+                    platforms.Add(new Platform { Hwnd = hwnd, Y = y, X1 = a, X2 = b, Owner = title, Ledge = l });
+        }
+    }
+
+    public Func<IntPtr, WindowContent> ContentOf;
 
     static void MergeFloors(List<Platform> list)
     {

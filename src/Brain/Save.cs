@@ -4,7 +4,7 @@ namespace MiloBot.Brain;
 
 public class DayStats
 {
-    public int Pets, Boops, Fetches, Treats, Meals, Tricks, Cats, Dogs, Gifts, Zoomies, Butterflies, Birds, Tugs, Walks, Rides, Dizzy, Falls, Words, Pounces, Swats;
+    public int Pets, Boops, Fetches, Treats, Meals, Tricks, Cats, Dogs, Gifts, Zoomies, Butterflies, Birds, Tugs, Walks, Rides, Dizzy, Falls, Words, Pounces, Swats, Climbs, Nudges, Bats, Pictures, Reads;
 }
 
 public class SeenInfo
@@ -106,6 +106,11 @@ public class SaveData
                 case "words": d.Words++; break;
                 case "pounces": d.Pounces++; break;
                 case "swats": d.Swats++; break;
+                case "climbs": d.Climbs++; break;
+                case "nudges": d.Nudges++; break;
+                case "bats": d.Bats++; break;
+                case "pictures": d.Pictures++; break;
+                case "reads": d.Reads++; break;
             }
         }
     }
