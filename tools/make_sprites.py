@@ -16,11 +16,11 @@ PAL = {
     "white":  ["#ffffff", "#ffffff", "#e8e8e8", "#c0c0c0"],
     "tongue": ["#f497a6", "#e8718a", "#c4506a", "#9a3450"],
     "mouth":  ["#7a2a2e", "#5a1c20", "#401216", "#2a0a0c"],
-    "sable":  ["#94705e", "#704f42", "#50372f", "#35231e"],
+    "sable":  ["#958d8a", "#6f6765", "#534c4a", "#3b3635"],
 }
 OUTLINE = {
     "fur": "#4a1e0c", "cream": "#6e4a28", "mask": "#2e160a", "earin": "#3e1a0a",
-    "nose": "#0a0605", "eye": "#060302", "white": "#555555", "tongue": "#6a2032", "mouth": "#2a0a0c", "sable": "#24160f",
+    "nose": "#0a0605", "eye": "#060302", "white": "#555555", "tongue": "#6a2032", "mouth": "#2a0a0c", "sable": "#211d1c",
 }
 KEYS = list(PAL.keys())
 K = {k: i for i, k in enumerate(KEYS)}
@@ -107,9 +107,21 @@ class Canvas:
                 if self.key[y, x] != fur:
                     continue
                 depth = y - top
-                if depth <= 2 or (depth == 3 and (x + y) % 2 == 0) or (depth == 4 and (x + 2 * y) % 4 == 0):
-                    self.key[y, x] = sab
-                    self.lvl[y, x] = min(3, self.lvl[y, x] + (1 if depth == 0 else 0))
+                # Silvery tips on top, charcoal underneath, then a few dark strands running into the orange.
+                if depth == 0:
+                    lvl = 0 if x % 3 != 0 else 1
+                elif depth == 1:
+                    lvl = 1
+                elif depth == 2:
+                    lvl = 2
+                elif depth == 3 and x % 2 == 0:
+                    lvl = 2
+                elif depth == 4 and x % 4 == 0:
+                    lvl = 3
+                else:
+                    continue
+                self.key[y, x] = sab
+                self.lvl[y, x] = lvl
 
     def image(self, outline=True):
         self.sable()
@@ -572,8 +584,8 @@ def back_view(dy=0, sway=0):
         c.paint(rect_mask(c, cx + s_ * 9 - 2, 43, cx + s_ * 9 + 2, GROUND), "fur", 2)
     body = cloud(c, "fur", cx, 36 + dy, 8.5, 7.5, ROUND_B, 2.0)
     ys, xs = np.mgrid[0:c.h, 0:c.w]
-    saddle = body & (ys < 35 + dy) & ((ys < 33 + dy) | ((xs + ys) % 2 == 0))
-    c.paint(saddle, "sable", np.clip(c.lvl, 0, 3))
+    saddle = body & (ys < 35 + dy) & ((ys < 33 + dy) | (xs % 2 == 0))
+    c.paint(saddle, "sable", np.where(ys < 31 + dy, 1, 2))
     hy = 24 + dy
     for s_ in (-1, 1):
         e = [(cx + s_ * 2.5, hy - 4.5), (cx + s_ * 7.2, hy - 2.5), (cx + s_ * 7.0, hy - 11.0)]
@@ -1164,17 +1176,42 @@ def hat_frame(canvas, hat):
 
 
 def prop_bed():
-    c = np.zeros((24, 32, 4), np.uint8)
-    im = Image.new("RGBA", (32, 24), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    d.ellipse([2, 5, 29, 18], fill=(55, 85, 150, 255), outline=(25, 35, 60, 255))
-    d.ellipse([4, 7, 27, 15], fill=(75, 110, 180, 255))
-    d.ellipse([1, 11, 30, 22], fill=(65, 100, 170, 255), outline=(25, 35, 60, 255))
-    d.ellipse([5, 11, 26, 18], fill=(130, 170, 230, 255))
-    d.ellipse([8, 12, 23, 16], fill=(155, 195, 245, 255))
-    for x in (10, 15, 20):
-        d.point((x, 13), fill=(255, 255, 255, 255))
-    return im
+    """An oval dog bed seen from slightly above: brown suede rim, soft cream cushion inside."""
+    W_, H_ = 32, 24
+    ys, xs = np.mgrid[0:H_, 0:W_] + 0.5
+    def ell(cx, cy, rx, ry):
+        return ((xs - cx) / rx) ** 2 + ((ys - cy) / ry) ** 2 <= 1.0
+    col = np.zeros((H_, W_, 4), np.uint8)
+    def fill(m, rgb):
+        col[m, :3] = rgb
+        col[m, 3] = 255
+    outer_top = ell(16, 13.5, 15, 6.5)          # top of the rim, seen from above
+    front = ell(16, 16.5, 15, 6.5) & (ys > 13.5)  # the rim's front side
+    body = outer_top | front
+    fill(body, (150, 84, 44))                    # suede
+    fill(front & ~outer_top, (122, 64, 32))      # front face in shade
+    fill(front & ~outer_top & (ys > 21), (100, 50, 25))
+    fill(outer_top & (ys < 9.5), (184, 110, 62))  # back rim catches the light
+    cushion = ell(16, 14, 11, 4.2)
+    fill(cushion, (238, 226, 204))               # plush cushion
+    fill(cushion & ell(16, 12.6, 10, 2.6), (248, 240, 224))
+    fill(cushion & (ys > 16.2), (218, 202, 176))  # cushion dips at the front
+    for x, y in ((10, 14), (16, 13), (22, 14), (13, 16), (19, 16)):
+        col[y, x, :3] = (225, 210, 186)          # plush tufts
+    # inner lip of the rim over the cushion
+    lip = ell(16, 14, 12.2, 5.2) & ~cushion & outer_top
+    fill(lip & (ys < 14), (120, 66, 34))
+    fill(lip & (ys >= 14), (170, 98, 54))
+    # little tag on the front
+    fill((xs > 14) & (xs < 18) & (ys > 18.5) & (ys < 20.5), (214, 170, 118))
+    # outline
+    filled = col[:, :, 3] > 0
+    out = np.zeros_like(filled)
+    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        out |= ~filled & np.roll(np.roll(filled, dy, 0), dx, 1)
+    col[out, :3] = (70, 34, 16)
+    col[out, 3] = 255
+    return Image.fromarray(col, "RGBA")
 
 
 def prop_bowl(full):
@@ -1281,6 +1318,170 @@ def export_extras():
     return [n for n, _ in props], names
 
 
+# ---------------------------------------------------------------- top view (seen from above, facing up)
+
+TW = 32
+
+
+def top_legs(c, phase=None, stride=2.0, spread=0):
+    # legs stick out at the sides; phase moves them fore and aft
+    spec = [(9.0 - spread, 12.5, 0.0), (23.0 + spread, 12.5, 0.5), (9.0 - spread, 22.5, 0.5), (23.0 + spread, 22.5, 0.0)]
+    for x, y, off in spec:
+        dy = 0 if phase is None else -math.cos((phase + off) * 2 * math.pi) * stride
+        m = ellipse_mask(c, x, y + dy, 1.7, 2.6)
+        c.paint(m, "fur", 1)
+        c.paint(m & ellipse_mask(c, x, y + dy - 1.8, 1.5, 1.0), "cream", 1)
+
+
+def top_tail(c, sway=0, curl=0):
+    tx, ty = 16 + sway, 26 - curl
+    m = cloud_mask(c, tx, ty, 3.6, 2.8, TAIL_B, 1.6)
+    c.paint(m, "sable", 0)
+    c.paint(m & ellipse_mask(c, tx, ty + 0.4, 2.2, 1.5), "sable", 1)
+    for x, y in ((tx - 3, ty - 1), (tx + 3, ty), (tx - 1, ty + 2), (tx + 2, ty - 2)):
+        px(c, x, y, "cream", 1)
+
+
+def top_body(c, stretch=0, sway=0, short=0):
+    ry = 7.2 + stretch - short
+    m = cloud(c, "fur", 16, 18 + short * 0.5, 5.6, ry, BODY_B, 1.6)
+    c.lvl[m] = 1
+    c.paint(m & ellipse_mask(c, 16, 16.5 + short * 0.5, 3.8, ry - 2.5), "fur", 0)
+    saddle = m & ellipse_mask(c, 16 + sway * 0.3, 20.5 + short * 0.4, 3.4, ry - 3.6)
+    c.paint(saddle, "sable", 1)
+    c.paint(saddle & ellipse_mask(c, 16 + sway * 0.3, 21.5, 2, 2), "sable", 2)
+
+
+def top_head(c, hx=16, hy=9, eyes="open", ears="up", nose=0):
+    cloud(c, "fur", hx, hy + 1.5, 6.0, 5.0, [(a, 1.0) for a in range(-180, 180, 40)], 1.7)
+    head = ellipse_mask(c, hx, hy, 4.6, 4.2)
+    c.ring(head, 1, only=("fur",))
+    c.paint(head, "fur", 0)
+    for s_ in (-1, 1):
+        if ears == "back":
+            e = [(hx + s_ * 2.2, hy + 1.8), (hx + s_ * 5.8, hy + 3.2), (hx + s_ * 4.6, hy + 0.2)]
+        else:
+            e = [(hx + s_ * 1.6, hy + 0.8), (hx + s_ * 5.0, hy + 2.2), (hx + s_ * 5.2, hy - 3.4)]
+        em = poly_mask(c, e)
+        c.ring(em, 1, only=("fur",))
+        c.paint(em, "fur", 1)
+        c.paint(em & ellipse_mask(c, hx + s_ * 4.2, hy + 0.2, 0.9, 1.5), "earin", 1)
+    mz = ellipse_mask(c, hx, hy - 3.8 - nose, 2.0, 2.2)
+    c.paint(mz, "mask", 0)
+    c.paint(mz & ellipse_mask(c, hx, hy - 3.0 - nose, 1.8, 1.0), "cream", 1)
+    px(c, hx - 0.5, hy - 5.8 - nose, "nose", 1)
+    px(c, hx + 0.5, hy - 5.8 - nose, "nose", 1)
+    for s_ in (-1, 1):
+        ex = hx + s_ * 2.4
+        if eyes == "open":
+            px(c, ex, hy - 1.8, "eye", 1)
+        else:
+            px(c, ex, hy - 1.3, "mask", 2)
+
+
+def top_stand(phase=None, stride=2.0, sway=0, stretch=0, nose=0, ears="up", eyes="open", hy=9):
+    c = Canvas(TW, TW)
+    top_body(c, stretch, sway)
+    top_legs(c, phase, stride)
+    top_tail(c, sway * 1.5)
+    top_head(c, 16 + sway * 0.4, hy - stretch, eyes, ears, nose)
+    return c
+
+
+def top_sit(sway=0, eyes="open"):
+    c = Canvas(TW, TW)
+    for s_ in (-1, 1):
+        m = ellipse_mask(c, 16 + s_ * 5.5, 22, 3.2, 3.6)
+        c.paint(m, "fur", 2)
+    top_body(c, short=2.5, sway=sway)
+    top_tail(c, sway * 1.5, curl=-1)
+    for s_ in (-1, 1):
+        m = ellipse_mask(c, 16 + s_ * 2.2, 12.5, 1.5, 1.6)
+        c.paint(m, "cream", 1)
+    top_head(c, 16, 10, eyes)
+    return c
+
+
+def top_lie(breath=0, eyes="open"):
+    c = Canvas(TW, TW)
+    for s_ in (-1, 1):
+        c.paint(ellipse_mask(c, 16 + s_ * 2.8, 4.5, 1.4, 2.4), "fur", 1)
+        c.paint(ellipse_mask(c, 16 + s_ * 2.8, 3.2, 1.3, 1.2), "cream", 1)
+        c.paint(ellipse_mask(c, 16 + s_ * 6.8, 22, 2.4, 3.4), "fur", 2)
+    top_body(c, stretch=0.5 + breath * 0.3)
+    top_tail(c, 0)
+    top_head(c, 16, 10, eyes, "back" if eyes != "open" else "up")
+    return c
+
+
+def top_sleep(breath=0):
+    c = Canvas(TW, TW)
+    m = cloud(c, "fur", 16, 16, 8.2 + breath * 0.3, 7.4 + breath * 0.3, ROUND_B, 1.8)
+    c.lvl[m] = 1
+    c.paint(m & ellipse_mask(c, 15, 15, 5.5, 5), "sable", 1)
+    c.paint(m & ellipse_mask(c, 14.5, 15.5, 3.5, 3), "sable", 2)
+    t = cloud_mask(c, 13, 22.5, 6.5, 2.8, TAIL_B, 1.6)
+    c.paint(t, "sable", 1)
+    for x, y in ((8, 22), (12, 24), (17, 23), (19, 21)):
+        px(c, x, y, "sable", 0)
+    head = cloud(c, "fur", 21, 19, 3.8, 3.4, [(a, 1.0) for a in range(-180, 180, 45)], 1.2)
+    c.paint(ellipse_mask(c, 21.5, 19, 2.8, 2.6), "fur", 0)
+    c.paint(poly_mask(c, [(19, 16.5), (20.8, 15.8), (19.2, 14.2)]), "fur", 1)
+    c.paint(poly_mask(c, [(22.5, 16.2), (24.2, 17.2), (24.4, 14.8)]), "fur", 1)
+    c.paint(ellipse_mask(c, 23.8, 21, 1.5, 1.3), "mask", 0)
+    px(c, 24.5, 21.8, "nose", 1)
+    px(c, 20.5, 19, "mask", 2)
+    px(c, 22.5, 19, "mask", 2)
+    return c
+
+
+def top_held(swing=0):
+    c = Canvas(TW, TW)
+    top_legs(c, None, spread=1.5)
+    top_body(c, stretch=0.8)
+    top_tail(c, swing * 2)
+    top_head(c, 16 + swing * 0.5, 9, "open", "back")
+    return c
+
+
+def build_top():
+    A = {}
+
+    def add(name, frames, fps, loop=True):
+        A[name] = dict(frames=frames, fps=fps, loop=loop)
+
+    add("idle", [top_stand(sway=s) for s in (0, 0, 0, 0.6, 0, -0.6)], 3)
+    add("wag", [top_stand(sway=s) for s in (-1.5, 0, 1.5, 0)], 12)
+    add("walk", [top_stand(phase=i / 4, stride=2.0, sway=[0, 0.5, 0, -0.5][i]) for i in range(4)], 8)
+    add("run", [top_stand(phase=i / 4, stride=3.2, stretch=0.8, ears="back", sway=[0, 0.8, 0, -0.8][i]) for i in range(4)], 14)
+    add("sniff", [top_stand(nose=n, eyes="half") for n in (0.8, 1.4, 0.8, 1.2)], 7)
+    add("sit", [top_sit(), top_sit(sway=0.5)], 2)
+    add("sit_wag", [top_sit(sway=s) for s in (-1.2, 0, 1.2, 0)], 10)
+    add("lie", [top_lie(0), top_lie(1)], 1.5)
+    add("sleep", [top_sleep(0), top_sleep(1)], 1.2)
+    add("held", [top_held(s) for s in (0, 1, 0, -1)], 6)
+    return A
+
+
+def export_top(A):
+    frames, anims = [], {}
+    for name, a in A.items():
+        idx = []
+        for c in a["frames"]:
+            idx.append(len(frames))
+            frames.append(c.image())
+        anims[name] = dict(frames=idx, fps=a["fps"], loop=a["loop"])
+    cols = 8
+    rows = (len(frames) + cols - 1) // cols
+    sheet = Image.new("RGBA", (cols * TW, rows * TW), (0, 0, 0, 0))
+    for i, f in enumerate(frames):
+        sheet.alpha_composite(f, ((i % cols) * TW, (i // cols) * TW))
+    sheet.save(os.path.join(OUT, "milo_top.png"))
+    with open(os.path.join(OUT, "milo_top.json"), "w") as f:
+        json.dump(dict(size=TW, columns=cols, anims=anims), f, indent=1)
+    return frames
+
+
 # ---------------------------------------------------------------- export
 
 def preview(frames, scale=6, cols=8, path="preview.png", labels=None):
@@ -1354,10 +1555,11 @@ def export(A):
 if __name__ == "__main__":
     A = build()
     frames = export(A)
+    top_frames = export_top(build_top())
     labels = []
     for n, a in A.items():
         for i in range(len(a["frames"])):
             labels.append(f"{n}:{i}")
     prev = sys.argv[1] if len(sys.argv) > 1 else "/tmp/claude-0/sheet.png"
     preview(frames, path=prev, labels=labels, cols=10, scale=4)
-    print(len(frames), "frames,", len(A), "anims")
+    print(len(frames), "frames,", len(A), "anims,", len(top_frames), "top-view frames")

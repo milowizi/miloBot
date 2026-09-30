@@ -27,7 +27,37 @@ public class Eyes
         client = new VisionClient(settings.OllamaUrl, settings.VisionModel);
     }
 
-    public string Status => !settings.Vision ? "uit" : client.Status;
+    public string Status => !settings.Vision ? "uit" : gameHwnd != IntPtr.Zero ? $"gepauzeerd ({gameProc} is open)" : client.Status;
+
+    // A game counts as "open" until its window is gone, not just while it's in front: alt-tabbing out of Roblox
+    // used to wake vision up again and reload the 6 GB model while the game was still running.
+    IntPtr gameHwnd;
+    string gameProc = "";
+    static readonly HashSet<string> Launchers = new() { "steam", "steamwebhelper", "epicgameslauncher", "curseforge", "battle.net", "lunarclient", "riotclientux", "riotclientservices", "ubisoftconnect", "upc", "overwolf", "xbox", "gamebar" };
+
+    void TrackGame(double now, WorldState w)
+    {
+        if (gameHwnd != IntPtr.Zero && !Win32.Native.IsWindow(gameHwnd))
+        {
+            Log.Write($"game closed ({gameProc}), vision back on");
+            gameHwnd = IntPtr.Zero;
+            unloaded = false;
+        }
+        // An unknown app that was fullscreen and is now back in front as a normal window wasn't a game after all.
+        if (gameHwnd != IntPtr.Zero && w.ForegroundHwnd == gameHwnd && !w.ForegroundFullscreen && w.ForegroundKind != AppKind.Game)
+        {
+            gameHwnd = IntPtr.Zero;
+            unloaded = false;
+        }
+        if (w.ForegroundHwnd == IntPtr.Zero || w.ForegroundHwnd == gameHwnd) return;
+        bool game = w.ForegroundKind == AppKind.Game && !Launchers.Contains(w.ForegroundProcess)
+                    || w.ForegroundFullscreen && fullscreenSince > 0 && now - fullscreenSince > 10 && w.ForegroundKind is AppKind.Game or AppKind.Unknown;
+        if (!game) return;
+        gameHwnd = w.ForegroundHwnd;
+        gameProc = w.ForegroundProcess;
+        Log.Write($"game session: {gameProc}, vision paused until it closes");
+        if (!unloaded && client.Ready) { unloaded = true; _ = client.Unload(); }
+    }
 
     public void Reset()
     {
@@ -47,7 +77,8 @@ public class Eyes
             else if (sampling.Result is MotionEvent ev && !milo.Asleep && ev.Strength > 0.01) milo.OnMotion(ev.X, ev.Y, ev.Persistent);
             sampling = null;
         }
-        if (screen != null && sampling == null && now >= nextMotion && !milo.Hidden)
+        bool gameInFront = w.ForegroundFullscreen || gameHwnd != IntPtr.Zero && w.ForegroundHwnd == gameHwnd;
+        if (screen != null && sampling == null && now >= nextMotion && !milo.Hidden && !gameInFront)
         {
             nextMotion = now + 1.2;
             var bounds = screen.Bounds;
@@ -86,6 +117,7 @@ public class Eyes
             fullscreenSince = -1;
             unloaded = false;
         }
+        TrackGame(now, w);
         if (pending != null && pending.IsCompleted)
         {
             if (pending.IsFaulted)
@@ -97,6 +129,7 @@ public class Eyes
             else if (pending.IsCompletedSuccessfully) Handle(pending.Result, pendingCapture, pendingIgnore, milo, w);
             pending = null;
         }
+        if (gameHwnd != IntPtr.Zero) return;
         if (pending != null || !client.Ready || milo.Asleep || milo.Hidden || w.UserIdle > 60 || w.ForegroundFullscreen || screen == null) return;
         if (milo.Current != null && milo.Current.Priority >= 2) return;
         string key = w.ForegroundProcess + "|" + w.ForegroundTitle;

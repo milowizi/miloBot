@@ -51,6 +51,7 @@ public partial class Milo
 
     public void OnNewPicture(RectD r)
     {
+        if (TopDown) return;
         if (Hidden || Asleep || !Body.OnGround || !Memory.Cool("newpic", 30, Now)) return;
         if (Current != null && Current.Priority >= 1) return;
         Face(r.CenterX, 20);

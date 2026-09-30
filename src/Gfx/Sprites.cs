@@ -17,6 +17,7 @@ public class Sprites
     public readonly Dictionary<string, Bitmap> Hats = new();
     public readonly Dictionary<string, int> PropIndex = new();
     public readonly Dictionary<string, int> CritterIndex = new();
+    public TopSprites Top;
     public int PropW = 32, PropH = 24, CritterSize = 16;
     public int FrameW, FrameH, Ground, Columns, IconSize;
     public readonly Dictionary<string, Anim> Anims = new();
@@ -72,10 +73,43 @@ public class Sprites
             i = 0;
             foreach (var n in crit.EnumerateArray()) s.CritterIndex[n.GetString()] = i++;
         }
+        s.Top = TopSprites.Load(dir);
         return s;
     }
 
     public Anim Get(string name) => Anims.TryGetValue(name, out var a) ? a : Anims["idle"];
 
     public (int x, int y) FrameOrigin(int frame) => (frame % Columns * FrameW, frame / Columns * FrameH);
+}
+
+/// <summary>Milo seen from above (for the top-view mode). Frames face up; they get rotated when drawn.</summary>
+public class TopSprites
+{
+    public Bitmap Sheet;
+    public int Size, Columns;
+    public readonly Dictionary<string, Anim> Anims = new();
+
+    public static TopSprites Load(string dir)
+    {
+        string png = Path.Combine(dir, "milo_top.png"), json = Path.Combine(dir, "milo_top.json");
+        if (!File.Exists(png) || !File.Exists(json)) return null;
+        var t = new TopSprites { Sheet = Png.Load(png) };
+        using var doc = JsonDocument.Parse(File.ReadAllText(json));
+        var root = doc.RootElement;
+        t.Size = root.GetProperty("size").GetInt32();
+        t.Columns = root.GetProperty("columns").GetInt32();
+        foreach (var a in root.GetProperty("anims").EnumerateObject())
+            t.Anims[a.Name] = new Anim
+            {
+                Name = a.Name,
+                Frames = a.Value.GetProperty("frames").EnumerateArray().Select(e => e.GetInt32()).ToArray(),
+                Fps = a.Value.GetProperty("fps").GetDouble(),
+                Loop = a.Value.GetProperty("loop").GetBoolean()
+            };
+        return t;
+    }
+
+    public Anim Get(string name) => Anims.TryGetValue(name, out var a) ? a : Anims["idle"];
+
+    public (int x, int y) FrameOrigin(int frame) => (frame % Columns * Size, frame / Columns * Size);
 }

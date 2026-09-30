@@ -2,17 +2,19 @@ namespace MiloBot.Gfx;
 
 public class Animator
 {
-    readonly Sprites sprites;
+    readonly Func<string, Anim> get;
     public Anim Current { get; private set; }
     public double Time { get; private set; }
     public double Speed = 1.0;
     public bool Reverse { get; private set; }
     public int FrameIndex { get; private set; }
 
-    public Animator(Sprites sprites)
+    public Animator(Sprites sprites) : this(sprites.Get) { }
+
+    public Animator(Func<string, Anim> get)
     {
-        this.sprites = sprites;
-        Current = sprites.Get("idle");
+        this.get = get;
+        Current = get("idle");
     }
 
     public string Name => Current.Name;
@@ -21,7 +23,7 @@ public class Animator
 
     public void Play(string name, bool restart = false, bool reverse = false)
     {
-        var a = sprites.Get(name);
+        var a = get(name);
         if (a == Current && !restart && reverse == Reverse) return;
         Current = a;
         Reverse = reverse;

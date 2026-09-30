@@ -87,6 +87,34 @@ public class Bitmap
         }
     }
 
+    /// <summary>
+    /// Draws a square sprite frame rotated by any angle around its centre, which lands on (cx, cy) in bitmap pixels.
+    /// Nearest-neighbour, so it stays crisp pixel art. angle is in radians, clockwise.
+    /// </summary>
+    public void DrawRotated(Bitmap src, int sx, int sy, int size, double cx, double cy, double angle, int scale, double alpha = 1.0)
+    {
+        double cos = Math.Cos(angle), sin = Math.Sin(angle);
+        double half = size / 2.0;
+        int r = (int)Math.Ceiling(half * 1.415 * scale) + 1;
+        int a255 = (int)Math.Round(Math.Clamp(alpha, 0, 1) * 255);
+        for (int ty = Math.Max(0, (int)cy - r); ty < Math.Min(Height, (int)cy + r); ty++)
+        {
+            double dy = (ty + 0.5 - cy) / scale;
+            int row = ty * Width;
+            for (int tx = Math.Max(0, (int)cx - r); tx < Math.Min(Width, (int)cx + r); tx++)
+            {
+                double dx = (tx + 0.5 - cx) / scale;
+                // inverse rotation back into the sprite
+                double u = dx * cos + dy * sin + half, v = -dx * sin + dy * cos + half;
+                if (u < 0 || v < 0 || u >= size || v >= size) continue;
+                uint p = src.Pixels[(sy + (int)v) * src.Width + sx + (int)u];
+                if (p == 0) continue;
+                if (a255 < 255) p = Fade(p, a255);
+                Pixels[row + tx] = Over(p, Pixels[row + tx]);
+            }
+        }
+    }
+
     public static (double x, double y) Turn(double x, double y, int quarter) => (quarter & 3) switch
     {
         1 => (-y, x),

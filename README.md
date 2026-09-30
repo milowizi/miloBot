@@ -83,9 +83,19 @@ Een lichte versie van Desktop Goose:
 
 Hij doet dat nooit met gemaximaliseerde of fullscreen vensters, nooit van je scherm af, niet als je aan het typen bent en niet als je een muisknop ingedrukt houdt. Pak je je muis zelf, dan stopt hij meteen. Uitzetten kan in menu → Opties → Ondeugend.
 
+### Bovenaanzicht
+
+Menu → Opties → **Bovenaanzicht**: dan kijk je van bovenaf op Milo en is je hele scherm zijn vloer. Hij loopt overal rond (over je vensters heen), snuffelt, gaat zitten of liggen, rolt zich op om te slapen, komt naar je muis en jaagt erachteraan als je snel beweegt. Waar hij loopt zie je even **pootafdrukjes** die na een seconde weer verdwijnen. Aaien, klikken, oppakken en gooien (dan glijdt hij over je scherm) werken ook, net als het laserpuntje. Balletje, snoepje, trucjes, vlinders en zijn mandje horen bij de zijaanzicht-modus en staan dan even uit.
+
+### Mandje en voerbak verplaatsen
+
+Sleep het mandje of de voerbak naar een andere plek: ze klikken vast op je taakbalk, ook op je andere scherm, en Milo onthoudt de plek. Gewoon klikken op de voerbak vult hem nog altijd.
+
 ### Gamen op één scherm
 
 Heb je twee schermen en zit je fullscreen te gamen, dan blijft Milo van dat scherm af en houdt hij je gezelschap op het andere scherm. Heb je maar één scherm, dan verstopt hij zich zoals vroeger.
+
+Zolang een game open staat (ook als je even alt-tabt naar iets anders) staat de scherm-visie op pauze en is het model uit je grafische kaart gehaald. Pas als je de game afsluit gaat hij weer kijken.
 
 ### Hij hoort wat je typt
 
@@ -145,7 +155,7 @@ Je kan `assets\milo.png` ook gewoon zelf bijwerken in Aseprite. Elk frame is 48x
 
 ## Testen (voor ontwikkelaars)
 
-Zet `"Debug": true` in `settings.json` en start Milo opnieuw. Schrijf daarna een commando in `%AppData%\MiloBot\command.txt` en Milo voert het binnen een seconde uit: `crawl`, `nudge`, `bat`, `content` of `state` (schrijft zijn toestand in de log).
+Zet `"Debug": true` in `settings.json` en start Milo opnieuw. Schrijf daarna een commando in `%AppData%\MiloBot\command.txt` en Milo voert het binnen een seconde uit: `crawl`, `nudge`, `bat`, `content`, `top` (bovenaanzicht aan/uit), `come` of `state` (schrijft zijn toestand in de log).
 
 ## Hoe zwaar is het?
 

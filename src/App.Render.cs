@@ -38,9 +38,90 @@ public partial class App
         };
     }
 
+    void RenderTop()
+    {
+        var t = sprites.Top;
+        int frame = milo.TopAnim.SheetFrame;
+        double cw = sprites.FrameW + 2 * SideMargin, ch = sprites.FrameH + TopMargin;
+        int x = (int)Math.Round(milo.Body.X - cw / 2 * scale), y = (int)Math.Round(milo.Body.Y - ch / 2 * scale);
+        int angle = (int)Math.Round((milo.Heading + Math.PI / 2) / (Math.PI / 16));
+        string key = $"top|{frame}|{angle}|{x}|{y}|{milo.Particles.Count}";
+        if (key == lastRenderKey && milo.Particles.Count == 0) return;
+        lastRenderKey = key;
+        winX = x;
+        winY = y;
+        var c = petWindow.Canvas;
+        c.Clear();
+        var (fx, fy) = t.FrameOrigin(frame);
+        c.DrawRotated(t.Sheet, fx, fy, t.Size, cw / 2 * scale, ch / 2 * scale, angle * Math.PI / 16, scale);
+        double hx = cw / 2, hy = ch / 2 - 14;
+        foreach (var p in milo.Particles)
+        {
+            double age = p.MaxLife - p.Life;
+            double alpha = Math.Min(1, age / 0.15) * Math.Min(1, p.Life / 0.4);
+            if (p.World || p.Dream) continue;
+            double px = hx + p.X, py = hy + p.Y - 4;
+            if (p.OnHead) py += Math.Sin(age * 6) * 0.8 - 3;
+            DrawIcon(c, p.Icon, px, py, alpha);
+        }
+        petWindow.Present(x, y);
+    }
+
+    const int TrailSize = 640;
+    LayeredWindow trailWindow;
+    Bitmap pawPrint;
+    double nextTrail;
+
+    // The paw prints live in their own click-through window around Milo, redrawn ~20 times a second while they fade.
+    void RenderTrail()
+    {
+        if (!milo.TopDown || milo.Hidden || milo.Prints.Count == 0)
+        {
+            trailWindow?.Show(false);
+            return;
+        }
+        if (Now < nextTrail) return;
+        nextTrail = Now + 0.05;
+        if (trailWindow == null)
+        {
+            trailWindow = new LayeredWindow(TrailSize, TrailSize, true);
+            own.Add(trailWindow.Hwnd);
+        }
+        pawPrint ??= MakePawPrint();
+        int ox = (int)Math.Round(milo.Body.X) - TrailSize / 2, oy = (int)Math.Round(milo.Body.Y) - TrailSize / 2;
+        var c = trailWindow.Canvas;
+        c.Clear();
+        int s = scale;
+        foreach (var p in milo.Prints)
+            c.DrawRotated(pawPrint, 0, 0, pawPrint.Width, p.X - ox, p.Y - oy, p.Angle + Math.PI / 2, s, Math.Min(1, p.Life) * 0.8);
+        bool shown = trailWindow.Visible;
+        trailWindow.Present(ox, oy);
+        if (!shown)
+        {
+            trailWindow.KeepOnTop();
+            petWindow.KeepOnTop();
+        }
+    }
+
+    static Bitmap MakePawPrint()
+    {
+        string[] art = { ".x..x.", "......", "x....x", "..xx..", ".xxxx.", ".xxxx." };
+        var b = new Bitmap(6, 6);
+        uint col = Bitmap.Premultiply(196, 142, 104, 210), edge = Bitmap.Premultiply(70, 42, 28, 190);
+        for (int y = 0; y < 6; y++)
+            for (int x = 0; x < 6; x++)
+                if (art[y][x] == 'x') b.Pixels[y * 6 + x] = y >= 4 && x is 2 or 3 ? edge : col;
+        return b;
+    }
+
     void Render()
     {
         if (milo.Hidden) return;
+        if (milo.TopDown && sprites.Top != null)
+        {
+            RenderTop();
+            return;
+        }
         int frame = milo.Anim.SheetFrame;
         bool flip = milo.Facing < 0;
         int q = milo.Quarter;
@@ -122,7 +203,7 @@ public partial class App
                 own.Add(w.Hwnd);
                 toyWindows[t] = w;
             }
-            if (t.InMouth || t.Hidden || milo.Hidden || world.Blocked(t.Body.X, t.Body.Y - 5)) { w.Show(false); continue; }
+            if (t.InMouth || t.Hidden || milo.Hidden || milo.TopDown || world.Blocked(t.Body.X, t.Body.Y - 5)) { w.Show(false); continue; }
             w.Canvas.Clear();
             w.Canvas.Draw(sprites.Icons, sprites.IconIndex[t.Icon] * 16, 0, 16, 16, 0, 0, scale);
             int x = (int)Math.Round(t.Body.X - 8 * scale);
@@ -139,7 +220,7 @@ public partial class App
 
     void RenderHome()
     {
-        if (!home.Active || milo.Hidden || sprites.Props == null)
+        if (!home.Active || milo.Hidden || milo.TopDown || sprites.Props == null)
         {
             homeWindow?.Show(false);
             return;
@@ -173,7 +254,7 @@ public partial class App
                 own.Add(w.Hwnd);
                 critterWindows[cr] = w;
             }
-            if (milo.Hidden || world.Blocked(cr.X, cr.Y - 5) || sprites.CritterSheet == null || !sprites.CritterIndex.TryGetValue(cr.Frame, out int i)) { w.Show(false); continue; }
+            if (milo.Hidden || milo.TopDown || world.Blocked(cr.X, cr.Y - 5) || sprites.CritterSheet == null || !sprites.CritterIndex.TryGetValue(cr.Frame, out int i)) { w.Show(false); continue; }
             int cs = sprites.CritterSize;
             w.Canvas.Clear();
             w.Canvas.Draw(sprites.CritterSheet, i * cs, 0, cs, cs, 0, 0, scale, cr.Facing < 0);

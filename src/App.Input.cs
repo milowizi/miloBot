@@ -137,21 +137,57 @@ public partial class App
         }
     }
 
+    // Click the bowl to fill it; drag the bed or bowl to move Milo's corner somewhere else (it snaps to the taskbar).
     class HomeMouse : IMouseTarget
     {
         readonly App app;
+        bool down, moving;
+        double pressX, pressY, grabDX, grabDY;
         public HomeMouse(App app) { this.app = app; }
 
         public void MouseDown()
         {
             Native.GetCursorPos(out var p);
-            if (Math.Abs(p.X - app.home.BowlX) < 14 * app.scale) app.FillBowl();
+            down = true;
+            moving = false;
+            pressX = p.X;
+            pressY = p.Y;
+            grabDX = p.X - app.home.BedX;
+            grabDY = p.Y - app.home.Y;
         }
 
-        public void MouseMove() { }
-        public void MouseUp() { }
+        public void MouseMove()
+        {
+            if (!down) return;
+            Native.GetCursorPos(out var p);
+            if (!moving && Math.Abs(p.X - pressX) + Math.Abs(p.Y - pressY) < 8) return;
+            moving = true;
+            app.home.Float(p.X - grabDX, p.Y - grabDY);
+            app.homeKey = "";
+        }
+
+        public void MouseUp()
+        {
+            if (!down) return;
+            down = false;
+            if (!moving)
+            {
+                Native.GetCursorPos(out var p);
+                if (Math.Abs(p.X - app.home.BowlX) < 14 * app.scale) app.FillBowl();
+                return;
+            }
+            moving = false;
+            app.settings.HomeX = app.home.BedX;
+            app.settings.Save();
+            app.home.PreferredX = app.home.BedX;
+            app.home.Place(app.world, app.scale);
+            app.homeKey = "";
+            app.sound.Play("thud", app.Now);
+            if (!app.milo.Asleep) { app.milo.Face(app.home.BedX, 0); app.milo.Alert(1.5); app.milo.Emote("question", 1.5); }
+        }
+
         public void RightClick() => app.ShowMenu();
-        public void CaptureLost() { }
+        public void CaptureLost() { if (down) MouseUp(); }
     }
 
     class CritterMouse : IMouseTarget

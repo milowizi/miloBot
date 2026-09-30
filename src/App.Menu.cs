@@ -67,15 +67,15 @@ public partial class App
             {
                 Text = "Spelen", Children = new List<MenuItem>
                 {
-                    new() { Id = 2, Text = toys.Ball == null ? "Balletje gooien" : "Balletje opnieuw gooien" },
+                    new() { Id = 2, Text = toys.Ball == null ? "Balletje gooien" : "Balletje opnieuw gooien", Disabled = milo.TopDown },
                     new() { Id = 5, Text = milo.Laser.On ? "Laserpuntje uit" : "Laserpuntje aan", Checked = milo.Laser.On },
-                    new() { Id = 3, Text = "Snoepje geven" },
+                    new() { Id = 3, Text = "Snoepje geven", Disabled = milo.TopDown },
                     new() { Id = 6, Text = "Voerbak vullen", Disabled = !home.Active || save.BowlFood >= 0.99 },
-                    new() { Id = 7, Text = "Vlinder loslaten" },
-                    new() { Id = 9, Text = "Tegen het plafond kruipen" }
+                    new() { Id = 7, Text = "Vlinder loslaten", Disabled = milo.TopDown },
+                    new() { Id = 9, Text = "Tegen het plafond kruipen", Disabled = milo.TopDown }
                 }
             },
-            new() { Text = "Trucjes", Children = trickItems },
+            new() { Text = "Trucjes", Children = trickItems, Disabled = milo.TopDown },
             new() { Id = 4, Text = asleep ? "Wakker maken" : "Laten slapen" },
             new() { Id = 8, Text = "📸 Foto van Milo" },
             new() { Text = "Milo's dagboek", Children = Diary() },
@@ -114,6 +114,7 @@ public partial class App
                     new() { Id = 32, Text = "Luistert naar wat je typt", Checked = settings.Hearing },
                     new() { Id = 33, Text = "Ondeugend (trekt aan vensters, mept je muis)", Checked = settings.Mischief },
                     new() { Id = 34, Text = "Speelt met wat er in je apps staat", Checked = settings.ContentPlay },
+                    new() { Id = 35, Text = "Bovenaanzicht (Milo loopt over je hele scherm)", Checked = settings.TopView },
                     new() { Text = "In je app: " + (settings.ContentPlay ? scanner.Summary : "uit"), Disabled = true }
                 }
             },
@@ -175,6 +176,7 @@ public partial class App
             case 33: settings.Mischief = !settings.Mischief; milo.Mischief = settings.Mischief; settings.Save(); break;
             case 34: settings.ContentPlay = !settings.ContentPlay; milo.ContentPlay = settings.ContentPlay; settings.Save(); sensor.ForceRefresh(); break;
             case 9: milo.StartCrawl(); break;
+            case 35: settings.TopView = !settings.TopView; settings.Save(); milo.SetTopDown(settings.TopView); lastRenderKey = ""; homeKey = ""; break;
             case 30: foreach (var t in toys.Items) t.Gone = true; break;
             case 31: try { Process.Start(new ProcessStartInfo(Settings.LogPath) { UseShellExecute = true }); } catch { } break;
             case 99: running = false; break;

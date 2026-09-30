@@ -87,7 +87,7 @@ public partial class Milo
         bool petNow = canPet && strokes.Count >= 3;
         if (petNow) lastStrokeTime = Now;
         Petting = Now - lastStrokeTime < 0.7 && Hover;
-        if (Petting && Current is not Petted && Current is not Held && Current is not Tug)
+        if (Petting && !TopDown && Current is not Petted && Current is not Held && Current is not Tug)
         {
             if (Current == null || Current.Priority < 3) Set(new Petted());
         }
@@ -181,6 +181,7 @@ public partial class Milo
 
     public void HoldAt(double cx, double cy)
     {
+        if (TopDown) { Body.X = cx; Body.Y = cy + U(4); return; }
         Body.X = cx + 2 * S * Facing;
         Body.Y = cy + (Sprites.Ground - 20) * S;
     }
@@ -215,6 +216,7 @@ public partial class Milo
         Save.Stat("boops");
         Save.AddFriend(0.2);
         Rewarded();
+        if (TopDown) { TopClick(); return; }
         if (clickCount >= 4 && !Asleep && Energy > 0.3)
         {
             clickCount = 0;
@@ -267,6 +269,12 @@ public partial class Milo
 
     public void OnWorld(WorldEvent e)
     {
+        if (TopDown)
+        {
+            if (e.Kind == WorldEventKind.UserReturned && e.Value > 90 && Memory.Cool("greet", 120, Now)) TopCome("heart");
+            else if (e.Kind == WorldEventKind.WindowOpened && !Asleep) Alert(1.2);
+            return;
+        }
         switch (e.Kind)
         {
             case WorldEventKind.UserReturned:
@@ -332,6 +340,7 @@ public partial class Milo
 
     public void OnToy(Toy t, bool thrown)
     {
+        if (TopDown) return;
         t.LastTouched = Now;
         if (t.Kind == ToyKind.Treat)
         {
@@ -372,6 +381,12 @@ public partial class Milo
 
     public bool OnVision(double x, double y, Reaction r, string label, double interest, bool strong = false, string kind = null)
     {
+        if (TopDown)
+        {
+            if (Posture == Posture.Held || Hidden || Asleep && !strong) return false;
+            TopInvestigate(x, y, r switch { Reaction.Bark => "exclaim", Reaction.Growl => "puff", Reaction.Happy => "heart", Reaction.Scared => "sweat", Reaction.Beg => "food", _ => "question" });
+            return true;
+        }
         if (Posture == Posture.Held || !Body.OnGround || Hidden) return false;
         if (Asleep && !strong) return false;
         if (Current != null && Current.Priority >= 2) return false;
@@ -388,6 +403,7 @@ public partial class Milo
 
     public void OnMotion(double x, double y, bool persistent)
     {
+        if (TopDown) return;
         if (Asleep || !Body.OnGround || Posture == Posture.Held) return;
         if (Current is Perch perch)
         {
@@ -412,6 +428,7 @@ public partial class Milo
 
     public void OnCritter(Critter c)
     {
+        if (TopDown) return;
         if (c.State == CritterState.OnMilo)
         {
             Save.Stat("butterflies");
@@ -461,12 +478,14 @@ public partial class Milo
 
     public void DoTrick(string id)
     {
+        if (TopDown) return;
         if (Posture == Posture.Held || !Body.OnGround) return;
         Set(new TrickBehavior(id, true));
     }
 
     public void PosePhoto()
     {
+        if (TopDown) { Emote("sparkle", 1.2); return; }
         if (Posture == Posture.Held || !Body.OnGround) return;
         Set(new Custom("Photo", (m, c, dt) =>
         {
@@ -497,6 +516,7 @@ public partial class Milo
 
     public void Call()
     {
+        if (TopDown) { TopCome(); return; }
         if (Asleep) Emote("exclaim");
         Social = Math.Max(Social, 0.5);
         Set(Plans.SeekUser(this));
@@ -504,12 +524,14 @@ public partial class Milo
 
     public void GoSleep()
     {
+        if (TopDown) { TopSet(Top.Sleep, 60, Posture.Sleep); return; }
         Energy = Math.Min(Energy, 0.3);
         Set(Home.Active ? Plans.GoToBedAndNap(this) : Plans.Nap(this));
     }
 
     public void WakeUp()
     {
+        if (TopDown) { if (Asleep) TopSet(Top.Sit, 2, Posture.Sit); return; }
         if (!Asleep && Posture != Posture.Lie) return;
         Energy = Math.Max(Energy, 0.7);
         Set(Plans.Stretch(this));

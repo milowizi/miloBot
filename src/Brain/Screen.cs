@@ -113,6 +113,12 @@ public partial class Milo
         Log.Write("heard: " + id + (addressed ? " (for me)" : ""));
         Save.Stat("words");
         if (id == "good") Rewarded();
+        if (TopDown)
+        {
+            if (addressed && id is "name" or "treat" or "walk" or "ball" or "good" or "food") TopCome(HeardIcon(id));
+            else Emote(HeardIcon(id), 1.4);
+            return;
+        }
         if (Asleep)
         {
             bool wake = addressed && id is "name" or "walk" or "treat" or "squirrel" && Rng.NextDouble() < (id == "name" ? 0.35 : 0.8);

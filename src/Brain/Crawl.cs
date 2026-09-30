@@ -184,6 +184,7 @@ public partial class Milo
 {
     public void StartCrawl()
     {
+        if (TopDown) return;
         if (Posture == Posture.Held || !Body.OnGround || Body.Climbing) return;
         var c = Crawl.TryMake(this);
         if (c == null) { Emote("question", 1.5); return; }

@@ -22,6 +22,8 @@ public class Settings
     public bool Hearing { get; set; } = true;
     public bool Mischief { get; set; } = true;
     public bool ContentPlay { get; set; } = true;
+    public bool TopView { get; set; } = false;
+    public double? HomeX { get; set; }
 
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MiloBot");
     static string FilePath => Path.Combine(Dir, "settings.json");

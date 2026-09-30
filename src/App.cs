@@ -65,6 +65,7 @@ public partial class App : IMouseTarget
             ContentPlay = settings.ContentPlay
         };
         home.Enabled = settings.ShowHome;
+        home.PreferredX = settings.HomeX;
         critters.Arrived = c => milo.OnCritter(c);
         eyes = new Eyes(settings);
         milo.Memory.Cool("nudge", 600, 0);
@@ -80,6 +81,7 @@ public partial class App : IMouseTarget
         sensor.Update(Now + 0.001);
         home.Place(world, scale);
         milo.Spawn();
+        if (settings.TopView) milo.SetTopDown(true);
         if (settings.StartWithWindows) SetAutostart(true);
         Log.Write($"started, scale {scale}, dpi {world.DpiScale:0.00}, friendship {save.Friendship:0} (lvl {save.Level}), screens: " + string.Join(" ", world.Screens.Select(s => $"[{s.Bounds.Left},{s.Bounds.Top},{s.Bounds.Right},{s.Bounds.Bottom} work {s.Work.Bottom}]")));
         lastCpu = Process.GetCurrentProcess().TotalProcessorTime;
@@ -175,10 +177,10 @@ public partial class App : IMouseTarget
         UpdateLaser(now);
         milo.Update(dt);
         toys.Update(world, dt, scale, WindowRect);
-        critters.Update(world, milo, dt, scale, settings.Critters && !milo.Hidden);
+        critters.Update(world, milo, dt, scale, settings.Critters && !milo.Hidden && !milo.TopDown);
         eyes.Update(now, world, milo, IgnoreRects());
         scanner.Standing = milo.Body.OnGround ? milo.Body.Platform?.Ledge : null;
-        scanner.Update(now, world, settings.ContentPlay && !milo.Hidden, scanner.Standing != null, IgnoreRects());
+        scanner.Update(now, world, settings.ContentPlay && !milo.Hidden && !milo.TopDown, scanner.Standing != null, IgnoreRects());
         if (scanner.NewPictures.Count > 0)
         {
             milo.OnNewPicture(scanner.NewPictures[0]);
@@ -187,6 +189,7 @@ public partial class App : IMouseTarget
         sensor.ConsumeAudioFlags();
         world.AudioOnset = false;
         Render();
+        RenderTrail();
         RenderToys();
         RenderHome();
         RenderCritters();
@@ -349,6 +352,8 @@ public partial class App : IMouseTarget
         switch (cmd)
         {
             case "crawl": milo.StartCrawl(); break;
+            case "top": milo.SetTopDown(!milo.TopDown); lastRenderKey = ""; break;
+            case "come": milo.Call(); break;
             case "nudge":
                 var p = world.Platforms.FirstOrDefault(q => !q.IsFloor && !q.IsContent && !Native.IsZoomed(q.Hwnd));
                 var b = p == null ? null : WindowNudge.TryMake(milo, p);
@@ -387,7 +392,17 @@ public partial class App : IMouseTarget
         {
             var ms = world.ScreenAt(milo.Body.X, milo.Body.Y - 10);
             hide = game == ms;
-            if (hide && blocked != null && !dragging && milo.Posture != Posture.Held)
+            if (hide && blocked != null && !dragging && milo.Posture != Posture.Held && milo.TopDown)
+            {
+                var other = world.Screens.FirstOrDefault(s => s != blocked);
+                if (other != null)
+                {
+                    milo.TopMoveTo(other);
+                    Log.Write($"moved to the other screen for fullscreen {world.ForegroundProcess}");
+                    hide = false;
+                }
+            }
+            if (hide && blocked != null && !dragging && milo.Posture != Posture.Held && !milo.TopDown)
             {
                 var floor = world.Platforms.Where(p => p.IsFloor && !blocked.Bounds.Contains(p.X1 + 1, p.Y - 5))
                     .OrderBy(p => Math.Min(Math.Abs(p.X1 - milo.Body.X), Math.Abs(p.X2 - milo.Body.X))).FirstOrDefault();
@@ -442,6 +457,7 @@ public partial class App : IMouseTarget
         foreach (var w in critterWindows.Values) w.Dispose();
         homeWindow?.Dispose();
         laserWindow?.Dispose();
+        trailWindow?.Dispose();
         petWindow?.Dispose();
         host?.Dispose();
         sound?.Dispose();
